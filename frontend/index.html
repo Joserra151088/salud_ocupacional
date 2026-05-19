@@ -1,0 +1,2749 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PREVITA · Occupational Health Platform</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<meta name="description" content="PREVITA Occupational Health Platform — Plataforma enterprise de salud ocupacional, integrada al ecosistema e-HealthTracker. Cumple NOM-004, NOM-024, NOM-030, NOM-035.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- Librerías: Tailwind para utilidades + Alpine para reactividad + Chart.js para gráficas + jsPDF para emisión + Day.js -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.13/dayjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.3/dist/cdn.min.js" defer></script>
+
+<script>
+// ── Configuración de API ──────────────────────────────────────────────
+const API_BASE = '/api';
+
+async function apiFetch(path, options = {}) {
+  const token = localStorage.getItem('ohp_token');
+  const res = await fetch(API_BASE + path, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': 'Bearer ' + token } : {}),
+      ...(options.headers || {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('ohp_token');
+    window.location.reload();
+    return;
+  }
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Error ' + res.status);
+  return data;
+}
+</script>
+
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        carbon:   "#0B1F25",
+        carbon2:  "#152830",
+        turq:     "#0FB5A6",
+        turq2:    "#0A8A7F",
+        turq3:    "#CFF1ED",
+        bone:     "#F5F1EA",
+        bone2:    "#EFE9DC",
+        ink:      "#2F3E45",
+        ink2:     "#6B7A82",
+        rule:     "#E8ECEE",
+        amber2:   "#D68910",
+        rose2:    "#C0392B",
+        leaf:     "#1E8449",
+        orange2:  "#E67E22",
+      },
+      fontFamily: {
+        display: ['Fraunces','Georgia','serif'],
+        sans:    ['Inter Tight','system-ui','sans-serif'],
+        mono:    ['JetBrains Mono','monospace'],
+      }
+    }
+  }
+}
+</script>
+
+<style>
+  :root {
+    --bg: #F5F1EA;
+    --fg: #2F3E45;
+    --card: #FFFFFF;
+    --muted: #6B7A82;
+    --rule: #E8ECEE;
+    --turq: #0FB5A6;
+    --turq2: #0A8A7F;
+    --carbon: #0B1F25;
+  }
+  html.dark {
+    --bg: #0B1F25;
+    --fg: #E8ECEE;
+    --card: #152830;
+    --muted: #9FB0B8;
+    --rule: #25393F;
+  }
+
+  html, body { background: var(--bg); color: var(--fg); }
+  body { font-family: 'Inter Tight', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+  /* Detalles editoriales */
+  .display { font-family: 'Fraunces', Georgia, serif; font-variation-settings: "opsz" 96; letter-spacing: -0.02em; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Card system */
+  .card  { background: var(--card); border: 1px solid var(--rule); border-radius: 12px; }
+  .hairline { border-color: var(--rule); }
+
+  /* Scrollbar minimalista */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #6B7A8233; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: #6B7A8266; }
+
+  /* Inputs base */
+  .field {
+    background: var(--card); color: var(--fg);
+    border: 1px solid var(--rule); border-radius: 8px;
+    padding: 8px 12px; width: 100%; font-size: 14px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .field:focus {
+    outline: none; border-color: var(--turq);
+    box-shadow: 0 0 0 3px #0FB5A633;
+  }
+  .field[disabled] { opacity: .5; cursor: not-allowed; }
+  .label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 8px; font-weight: 500; font-size: 14px;
+    transition: transform .08s ease, background .15s, color .15s, border-color .15s;
+    cursor: pointer; user-select: none; border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(.98); }
+  .btn-primary { background: var(--carbon); color: #fff; }
+  .btn-primary:hover { background: #1A2F36; }
+  .btn-turq { background: var(--turq); color: var(--carbon); }
+  .btn-turq:hover { background: var(--turq2); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--fg); border-color: var(--rule); }
+  .btn-ghost:hover { background: #0FB5A622; border-color: var(--turq); }
+  .btn-danger { background: #C0392B; color: #fff; }
+  .btn-danger:hover { background: #962F25; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 6px; }
+
+  /* Chips & badges */
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 8px; border-radius: 999px;
+    font-weight: 600; letter-spacing: .02em;
+  }
+  .chip-turq   { background: #CFF1ED; color: #0A8A7F; }
+  .chip-leaf   { background: #D6EFE0; color: #1E8449; }
+  .chip-amber  { background: #FCEDD2; color: #B8770A; }
+  .chip-orange { background: #FBE0CD; color: #B8551A; }
+  .chip-rose   { background: #F6D5D0; color: #962F25; }
+  .chip-ink    { background: #E8ECEE; color: #2F3E45; }
+
+  /* Sidebar */
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-radius: 8px;
+    font-size: 14px; color: #B6CAD2; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .nav-item:hover { background: #1F3942; color: #fff; }
+  .nav-item.active { background: #0FB5A6; color: #0B1F25; font-weight: 600; }
+  .nav-group-title { font-size: 10px; font-weight: 600; letter-spacing: .12em;
+    text-transform: uppercase; color: #6B8088; padding: 16px 14px 6px; }
+
+  /* Verdict banner */
+  .verdict {
+    border-radius: 14px; padding: 20px 24px;
+    display: flex; align-items: center; gap: 20px; color: #fff;
+  }
+  .v-apto      { background: linear-gradient(135deg, #1E8449, #27AE60); }
+  .v-rest      { background: linear-gradient(135deg, #B8770A, #D68910); }
+  .v-temp      { background: linear-gradient(135deg, #B8551A, #E67E22); }
+  .v-def       { background: linear-gradient(135deg, #962F25, #C0392B); }
+
+  /* Tab pills */
+  .tab {
+    padding: 8px 14px; border-radius: 999px; font-size: 13px;
+    color: var(--muted); cursor: pointer; font-weight: 500;
+    transition: background .15s, color .15s;
+  }
+  .tab:hover { color: var(--fg); }
+  .tab.active { background: var(--carbon); color: #fff; }
+
+  /* Step pills (wizard) */
+  .step-dot { width: 28px; height: 28px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; background: var(--rule); color: var(--muted); }
+  .step-dot.done { background: #1E8449; color: #fff; }
+  .step-dot.current { background: var(--turq); color: var(--carbon); }
+
+  /* Toast */
+  .toast {
+    position: fixed; right: 24px; bottom: 24px; z-index: 50;
+    background: #0B1F25; color: #fff; padding: 12px 18px;
+    border-radius: 10px; box-shadow: 0 12px 32px rgba(11,31,37,.25);
+    font-size: 14px; max-width: 380px;
+  }
+
+  /* Dictation pulse */
+  .pulse-dot {
+    width: 10px; height: 10px; background: #C0392B; border-radius: 999px;
+    box-shadow: 0 0 0 0 #C0392B;
+    animation: pulse 1.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(192,57,43,.7); }
+    100% { box-shadow: 0 0 0 14px rgba(192,57,43,0); }
+  }
+
+  /* Fade-in */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-up { animation: fadeUp .35s cubic-bezier(.22,.61,.36,1) both; }
+
+  /* Editorial accents */
+  .accent-rule {
+    background-image: linear-gradient(90deg, var(--turq) 0 24px, transparent 24px);
+    background-repeat: no-repeat;
+    padding-left: 36px;
+  }
+
+  /* Modal */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(11,31,37,.45);
+    backdrop-filter: blur(4px); z-index: 40;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+
+  /* Print */
+  @media print {
+    .no-print { display: none !important; }
+  }
+
+  /* Grid de audiometría */
+  .audio-grid input { padding: 4px; text-align: center; font-size: 12px; }
+  .audio-grid th { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+
+  /* Spark cards hover */
+  .spark-card:hover { transform: translateY(-2px); box-shadow: 0 12px 24px -16px rgba(11,31,37,.25); }
+  .spark-card { transition: transform .2s, box-shadow .2s; }
+</style>
+</head>
+<body class="font-sans">
+
+<!-- ══ PANTALLA DE LOGIN ══════════════════════════════════════════════════ -->
+<div id="login-screen" x-data="loginApp()" x-show="!loggedIn" x-cloak
+     class="min-h-screen flex items-center justify-center bg-bone dark:bg-carbon px-4">
+  <div class="card w-full max-w-sm p-8 space-y-6">
+    <div class="text-center space-y-1">
+      <div class="display text-2xl font-semibold text-carbon dark:text-bone">PREVITA · OHP</div>
+      <p class="text-xs text-ink2">Occupational Health Platform</p>
+    </div>
+    <form @submit.prevent="login()" class="space-y-4">
+      <div>
+        <label class="label mb-1 block">Correo electrónico</label>
+        <input x-model="email" type="email" autocomplete="username"
+               class="field" placeholder="medico@empresa.com" required :disabled="loading">
+      </div>
+      <div>
+        <label class="label mb-1 block">Contraseña</label>
+        <input x-model="password" type="password" autocomplete="current-password"
+               class="field" placeholder="••••••••" required :disabled="loading">
+      </div>
+      <div x-show="error" class="text-xs text-rose2 font-medium" x-text="error"></div>
+      <button type="submit" :disabled="loading"
+              class="w-full py-2.5 rounded-lg bg-turq text-carbon font-semibold text-sm
+                     hover:bg-turq2 transition disabled:opacity-50">
+        <span x-show="!loading">Iniciar sesión</span>
+        <span x-show="loading">Verificando…</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ══ APLICACIÓN PRINCIPAL ══════════════════════════════════════════════ -->
+<div id="app" x-data="ohpApp()" x-show="appReady" x-cloak>
+
+<!-- ─────────── Toast ─────────── -->
+<template x-if="toast">
+  <div class="toast fade-up" x-text="toast"></div>
+</template>
+
+<!-- ─────────── Modal global ─────────── -->
+<template x-if="modal">
+  <div class="modal-bg" @click.self="closeModal()">
+    <div class="card p-6 max-w-lg w-full fade-up">
+      <h3 class="display text-2xl mb-2" x-text="modal.title"></h3>
+      <p class="text-sm text-ink2 mb-4" x-text="modal.body"></p>
+      <div class="flex justify-end gap-2">
+        <button class="btn btn-ghost" @click="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" @click="modal.onConfirm()" x-text="modal.confirmText || 'Confirmar'"></button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<div class="flex min-h-screen">
+
+  <!-- ═════════════════ SIDEBAR ═════════════════ -->
+  <aside class="no-print w-64 bg-carbon text-bone flex-shrink-0 flex flex-col" :class="sidebarOpen ? '' : 'hidden lg:flex'">
+    <div class="px-5 py-5 border-b border-carbon2">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-md bg-turq flex items-center justify-center text-carbon font-bold">P</div>
+        <div>
+          <div class="font-display text-lg leading-none">PREVITA</div>
+          <div class="text-[10px] text-turq3 mt-0.5 tracking-wider">OHP · eHealthTracker</div>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto py-2">
+      <div class="nav-group-title">Operación clínica</div>
+      <div class="px-2 space-y-1">
+        <div class="nav-item" :class="route==='dashboard' && 'active'" @click="go('dashboard')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item" :class="route==='workers' && 'active'" @click="go('workers')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Trabajadores
+        </div>
+        <div class="nav-item" :class="route==='new-eval' && 'active'" @click="go('new-eval')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Nueva evaluación
+        </div>
+        <div class="nav-item" :class="route==='accidents' && 'active'" @click="go('accidents')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          Accidentes & ST-7
+        </div>
+      </div>
+
+      <div class="nav-group-title">Análisis</div>
+      <div class="px-2 space-y-1">
+        <div class="nav-item" :class="route==='reports' && 'active'" @click="go('reports')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 6-6"/></svg>
+          Reportes ejecutivos
+        </div>
+        <div class="nav-item" :class="route==='documents' && 'active'" @click="go('documents')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Documentos firmados
+        </div>
+      </div>
+
+      <div class="nav-group-title">Configuración</div>
+      <div class="px-2 space-y-1">
+        <div class="nav-item" :class="route==='catalogs' && 'active'" @click="go('catalogs')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+          Empresas & catálogos
+        </div>
+        <div class="nav-item" :class="route==='rules' && 'active'" @click="go('rules')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+          Reglas del motor
+        </div>
+        <div class="nav-item" :class="route==='settings' && 'active'" @click="go('settings')">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Preferencias
+        </div>
+      </div>
+    </nav>
+
+    <div class="px-4 py-3 border-t border-carbon2 text-[11px] text-turq3">
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="text-bone text-sm font-semibold" x-text="user?.name || '—'"></div>
+          <div x-text="user?.role || ''"></div>
+        </div>
+        <button class="btn btn-sm btn-ghost text-bone hover:bg-carbon2" @click="logout()" title="Cerrar sesión">⏻</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═════════════════ MAIN ═════════════════ -->
+  <main class="flex-1 min-w-0">
+
+    <!-- Topbar -->
+    <header class="no-print sticky top-0 z-30 bg-bone/85 backdrop-blur border-b hairline">
+      <div class="px-6 py-3 flex items-center gap-3">
+        <button class="lg:hidden btn btn-ghost btn-sm" @click="sidebarOpen=!sidebarOpen">☰</button>
+        <div class="hidden md:flex items-center gap-2 text-sm text-ink2">
+          <span>PREVITA OHP</span><span>/</span>
+          <span class="font-medium text-ink" x-text="routeTitle()"></span>
+        </div>
+        <div class="flex-1"></div>
+        <button class="btn btn-ghost btn-sm" @click="toggleDark()"><span x-text="dark ? '☀' : '◐'"></span> <span class="hidden sm:inline" x-text="dark ? 'Claro' : 'Oscuro'"></span></button>
+        <button class="btn btn-turq btn-sm" @click="go('new-eval')">+ Nueva evaluación</button>
+      </div>
+    </header>
+
+    <!-- Contenido por ruta -->
+    <div class="p-6 max-w-7xl mx-auto">
+      <!-- ═════════════════ DASHBOARD ═════════════════ -->
+      <section x-show="route==='dashboard'" x-transition class="space-y-6">
+        <div class="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div class="text-xs text-ink2 tracking-widest uppercase">Visión general</div>
+            <h1 class="display text-4xl mt-1">Dashboard ejecutivo</h1>
+            <p class="text-sm text-ink2 mt-1">Salud ocupacional en tiempo real, alineado a NOM-030 / NOM-035 / NOM-019.</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-ghost btn-sm" @click="seedDemo()">Cargar datos demo</button>
+            <button class="btn btn-ghost btn-sm" @click="confirmReset()">Reiniciar todo</button>
+          </div>
+        </div>
+
+        <!-- KPI cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="card p-5">
+            <div class="label">Trabajadores</div>
+            <div class="display text-3xl mt-1" x-text="kpis.workers"></div>
+            <div class="text-[11px] text-ink2 mt-1">Activos en sistema</div>
+          </div>
+          <div class="card p-5">
+            <div class="label">Evaluaciones</div>
+            <div class="display text-3xl mt-1" x-text="kpis.evaluations"></div>
+            <div class="text-[11px] text-ink2 mt-1">Periodo actual</div>
+          </div>
+          <div class="card p-5">
+            <div class="label">Tasa de aptitud</div>
+            <div class="display text-3xl mt-1"><span x-text="kpis.aptRate"></span><span class="text-base ml-1">%</span></div>
+            <div class="text-[11px] text-leaf mt-1">↑ con vigilancia</div>
+          </div>
+          <div class="card p-5">
+            <div class="label">Accidentes</div>
+            <div class="display text-3xl mt-1" x-text="kpis.accidents"></div>
+            <div class="text-[11px] text-ink2 mt-1">Periodo actual</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="card p-5 lg:col-span-2">
+            <div class="flex items-baseline justify-between mb-3">
+              <h3 class="display text-xl">Evaluaciones por mes</h3>
+              <span class="chip chip-turq">Últimos 12 meses</span>
+            </div>
+            <div class="h-64"><canvas id="chartMonthly"></canvas></div>
+          </div>
+          <div class="card p-5">
+            <div class="flex items-baseline justify-between mb-3">
+              <h3 class="display text-xl">Dictámenes</h3>
+              <span class="chip chip-ink" x-text="evaluations.length + ' totales'"></span>
+            </div>
+            <div class="h-64"><canvas id="chartVerdicts"></canvas></div>
+          </div>
+        </div>
+
+        <div class="card p-5">
+          <div class="flex items-baseline justify-between mb-3">
+            <h3 class="display text-xl">Últimas evaluaciones</h3>
+            <button class="btn btn-ghost btn-sm" @click="go('workers')">Ver todos →</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-[11px] uppercase text-ink2 border-b hairline">
+                  <th class="py-2 pr-3">Fecha</th>
+                  <th class="py-2 pr-3">Trabajador</th>
+                  <th class="py-2 pr-3">Tipo</th>
+                  <th class="py-2 pr-3">Empresa</th>
+                  <th class="py-2 pr-3">Dictamen</th>
+                  <th class="py-2 pr-3">Confianza</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="e in latestEvals()" :key="e.id">
+                  <tr class="border-b hairline hover:bg-bone2/40">
+                    <td class="py-2 pr-3 mono text-xs" x-text="dayjs(e.date).format('YYYY-MM-DD')"></td>
+                    <td class="py-2 pr-3"><a class="font-medium hover:text-turq2 cursor-pointer" @click="openWorker(e.workerId)" x-text="workerName(e.workerId)"></a></td>
+                    <td class="py-2 pr-3 text-ink2 capitalize" x-text="e.type"></td>
+                    <td class="py-2 pr-3 text-ink2" x-text="companyOf(e.workerId)"></td>
+                    <td class="py-2 pr-3"><span class="chip" :class="verdictChipClass(e.verdict)" x-text="verdictLabel(e.verdict)"></span></td>
+                    <td class="py-2 pr-3 mono text-xs" x-text="Math.round((e.confidence||0)*100)+'%'"></td>
+                    <td class="py-2 text-right">
+                      <button class="btn btn-ghost btn-sm" @click="emitPdf('apto', e.id)">PDF</button>
+                    </td>
+                  </tr>
+                </template>
+                <tr x-show="evaluations.length===0"><td colspan="7" class="py-8 text-center text-ink2">Sin evaluaciones aún. Carga los datos demo o crea una.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═════════════════ WORKERS LIST ═════════════════ -->
+      <section x-show="route==='workers'" x-transition class="space-y-6">
+        <div class="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div class="text-xs text-ink2 tracking-widest uppercase">Expedientes</div>
+            <h1 class="display text-4xl mt-1">Trabajadores</h1>
+            <p class="text-sm text-ink2 mt-1" x-text="workers.length + ' expedientes en este tenant'"></p>
+          </div>
+          <div class="flex gap-2 items-center">
+            <input class="field max-w-xs" placeholder="Buscar por nombre o CURP…" x-model="search">
+            <button class="btn btn-turq" @click="openNewWorker()">+ Nuevo expediente</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <template x-for="w in filteredWorkers()" :key="w.id">
+            <div class="card p-5 cursor-pointer hover:shadow-md transition" @click="openWorker(w.id)">
+              <div class="flex items-start justify-between">
+                <div>
+                  <div class="display text-xl leading-tight" x-text="w.fullName"></div>
+                  <div class="text-xs text-ink2 mt-1 mono" x-text="w.curp"></div>
+                </div>
+                <span class="chip" :class="verdictChipClass(lastVerdict(w.id))" x-text="verdictLabel(lastVerdict(w.id) || 'pending')"></span>
+              </div>
+              <div class="mt-3 text-sm text-ink2">
+                <div x-text="w.jobPosition"></div>
+                <div class="text-xs" x-text="w.company + ' · ' + w.worksite"></div>
+              </div>
+              <div class="mt-3 flex items-center gap-2 text-[11px] text-ink2">
+                <span class="mono" x-text="(w.age||'—') + ' años'"></span><span>·</span>
+                <span x-text="evalsOf(w.id).length + ' evaluaciones'"></span>
+              </div>
+            </div>
+          </template>
+        </div>
+        <div x-show="workers.length===0" class="card p-12 text-center text-ink2">
+          Aún no hay trabajadores. <button class="btn btn-turq btn-sm ml-2" @click="seedDemo()">Cargar demo</button>
+        </div>
+      </section>
+
+      <!-- ═════════════════ EXPEDIENTE ═════════════════ -->
+      <section x-show="route==='worker'" x-transition class="space-y-5" x-data="{ tab: 'resumen' }">
+        <template x-if="currentWorker()">
+          <div>
+            <div class="flex items-end justify-between gap-4 flex-wrap">
+              <div>
+                <div class="text-xs text-ink2 tracking-widest uppercase">Expediente clínico laboral · NOM-004-SSA3-2012</div>
+                <h1 class="display text-4xl mt-1" x-text="currentWorker().fullName"></h1>
+                <div class="text-sm text-ink2 mt-1">
+                  <span class="mono" x-text="currentWorker().curp"></span> ·
+                  <span x-text="currentWorker().age + ' años'"></span> ·
+                  <span x-text="currentWorker().sex"></span> ·
+                  <span x-text="currentWorker().jobPosition"></span>
+                </div>
+              </div>
+              <div class="flex gap-2">
+                <button class="btn btn-ghost" @click="editWorker(currentWorker().id)">Editar datos</button>
+                <button class="btn btn-turq" @click="startEval(currentWorker().id)">+ Nueva evaluación</button>
+              </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="mt-5 flex gap-2 flex-wrap border-b hairline pb-3">
+              <button class="tab" :class="tab==='resumen' && 'active'" @click="tab='resumen'">Resumen</button>
+              <button class="tab" :class="tab==='evolucion' && 'active'" @click="tab='evolucion'; setTimeout(()=>renderEvolution(currentWorker().id), 50)">Evolución longitudinal · eHT</button>
+              <button class="tab" :class="tab==='evals' && 'active'" @click="tab='evals'">Evaluaciones <span class="mono text-[10px] ml-1" x-text="'('+evalsOf(currentWorker().id).length+')'"></span></button>
+              <button class="tab" :class="tab==='studies' && 'active'" @click="tab='studies'">Estudios</button>
+              <button class="tab" :class="tab==='nom035' && 'active'" @click="tab='nom035'">NOM-035</button>
+              <button class="tab" :class="tab==='docs' && 'active'" @click="tab='docs'">Documentos</button>
+              <button class="tab" :class="tab==='notes' && 'active'" @click="tab='notes'">Notas (dictado)</button>
+            </div>
+
+            <!-- TAB · Resumen -->
+            <div x-show="tab==='resumen'" class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-5">
+              <div class="card p-5 lg:col-span-2">
+                <h3 class="display text-xl mb-3">Datos del trabajador</h3>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                  <div><div class="label">CURP</div><div class="mono" x-text="currentWorker().curp"></div></div>
+                  <div><div class="label">NSS</div><div class="mono" x-text="currentWorker().nss || '—'"></div></div>
+                  <div><div class="label">RFC</div><div class="mono" x-text="currentWorker().rfc || '—'"></div></div>
+                  <div><div class="label">Fecha de nacimiento</div><div x-text="currentWorker().birthDate"></div></div>
+                  <div><div class="label">Sexo</div><div x-text="currentWorker().sex"></div></div>
+                  <div><div class="label">Número de empleado</div><div class="mono" x-text="currentWorker().employeeNo || '—'"></div></div>
+                  <div><div class="label">Empresa</div><div x-text="currentWorker().company"></div></div>
+                  <div><div class="label">Centro de trabajo</div><div x-text="currentWorker().worksite"></div></div>
+                  <div><div class="label">Puesto</div><div x-text="currentWorker().jobPosition"></div></div>
+                </div>
+                <h3 class="display text-xl mb-2 mt-5">Riesgos y EPP</h3>
+                <div class="text-sm">
+                  <div class="text-ink2 text-xs mb-1">Riesgos identificados</div>
+                  <div class="flex flex-wrap gap-1.5 mb-3">
+                    <template x-for="r in currentWorker().risks||[]" :key="r"><span class="chip chip-amber" x-text="r"></span></template>
+                    <span x-show="!(currentWorker().risks||[]).length" class="text-ink2 text-xs">Sin riesgos asignados.</span>
+                  </div>
+                  <div class="text-ink2 text-xs mb-1">EPP asignado</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <template x-for="e in currentWorker().epp||[]" :key="e"><span class="chip chip-turq" x-text="e"></span></template>
+                    <span x-show="!(currentWorker().epp||[]).length" class="text-ink2 text-xs">Sin EPP asignado.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card p-5">
+                <h3 class="display text-xl mb-3">Dictamen vigente</h3>
+                <template x-if="lastEval(currentWorker().id)">
+                  <div>
+                    <div class="verdict" :class="verdictBgClass(lastEval(currentWorker().id).verdict)">
+                      <div>
+                        <div class="text-[11px] uppercase tracking-widest opacity-75">Dictamen</div>
+                        <div class="display text-2xl mt-0.5" x-text="verdictLabel(lastEval(currentWorker().id).verdict)"></div>
+                        <div class="text-xs opacity-90 mt-1">Confianza <span x-text="Math.round((lastEval(currentWorker().id).confidence||0)*100)+'%'"></span></div>
+                      </div>
+                    </div>
+                    <div class="mt-3 text-xs text-ink2">
+                      Emitido el <span class="mono" x-text="dayjs(lastEval(currentWorker().id).date).format('YYYY-MM-DD HH:mm')"></span> ·
+                      Vence <span class="mono" x-text="dayjs(lastEval(currentWorker().id).date).add(12,'month').format('YYYY-MM-DD')"></span>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                      <button class="btn btn-turq btn-sm" @click="emitPdf('apto', lastEval(currentWorker().id).id)">PDF apto médico</button>
+                      <button class="btn btn-ghost btn-sm" @click="emitPdf('historia', lastEval(currentWorker().id).id)">Historia clínica</button>
+                    </div>
+                  </div>
+                </template>
+                <div x-show="!lastEval(currentWorker().id)" class="text-ink2 text-sm">Sin evaluaciones aún. <button class="btn btn-turq btn-sm mt-2" @click="startEval(currentWorker().id)">Iniciar</button></div>
+              </div>
+            </div>
+
+            <!-- TAB · Evolución -->
+            <div x-show="tab==='evolucion'" class="space-y-4 mt-5">
+              <div class="card p-5">
+                <div class="flex items-baseline justify-between mb-2">
+                  <div>
+                    <h3 class="display text-xl">Evolución longitudinal</h3>
+                    <p class="text-xs text-ink2">Series clínicas en el tiempo · integradas al módulo de Tracking de e-HealthTracker (FHIR Observations).</p>
+                  </div>
+                  <span class="chip chip-turq">LOINC sincronizados</span>
+                </div>
+                <div class="h-72"><canvas id="chartEvolution"></canvas></div>
+              </div>
+
+              <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <template x-for="card in evolutionCards(currentWorker().id)" :key="card.key">
+                  <div class="card p-4 spark-card">
+                    <div class="flex items-start justify-between">
+                      <div>
+                        <div class="label" x-text="card.label"></div>
+                        <div class="display text-2xl mt-0.5"><span x-text="card.last"></span><span class="text-xs ml-1 text-ink2" x-text="card.unit"></span></div>
+                        <div class="text-[10px] text-ink2 mono mt-0.5" x-text="'LOINC '+card.loinc"></div>
+                      </div>
+                      <span class="chip" :class="card.trendClass" x-text="card.trend"></span>
+                    </div>
+                    <div class="h-12 mt-2"><canvas :id="'spark-'+card.key"></canvas></div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- TAB · Evaluaciones (listado) -->
+            <div x-show="tab==='evals'" class="card p-5 mt-5">
+              <h3 class="display text-xl mb-3">Historial de evaluaciones</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-[11px] uppercase text-ink2 border-b hairline">
+                      <th class="py-2 pr-3">Fecha</th><th class="py-2 pr-3">Tipo</th>
+                      <th class="py-2 pr-3">TA</th><th class="py-2 pr-3">IMC</th>
+                      <th class="py-2 pr-3">PTA OI</th><th class="py-2 pr-3">FEV1</th>
+                      <th class="py-2 pr-3">NOM-035</th><th class="py-2 pr-3">Dictamen</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="e in evalsOf(currentWorker().id)" :key="e.id">
+                      <tr class="border-b hairline hover:bg-bone2/40">
+                        <td class="py-2 pr-3 mono text-xs" x-text="dayjs(e.date).format('YYYY-MM-DD')"></td>
+                        <td class="py-2 pr-3 capitalize" x-text="e.type"></td>
+                        <td class="py-2 pr-3 mono text-xs" x-text="(e.vitals?.sbp||'—')+'/'+(e.vitals?.dbp||'—')"></td>
+                        <td class="py-2 pr-3 mono text-xs" x-text="e.vitals?.bmi||'—'"></td>
+                        <td class="py-2 pr-3 mono text-xs" x-text="e.audio?.ptaOi||'—'"></td>
+                        <td class="py-2 pr-3 mono text-xs" x-text="(e.spiro?.fev1Pct||'—')+'%'"></td>
+                        <td class="py-2 pr-3 text-xs" x-text="e.nom035?.level||'—'"></td>
+                        <td class="py-2 pr-3"><span class="chip" :class="verdictChipClass(e.verdict)" x-text="verdictLabel(e.verdict)"></span></td>
+                        <td class="py-2 text-right">
+                          <button class="btn btn-ghost btn-sm" @click="emitPdf('apto', e.id)">PDF</button>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+                <div x-show="!evalsOf(currentWorker().id).length" class="text-ink2 text-sm py-6 text-center">Sin evaluaciones.</div>
+              </div>
+            </div>
+
+            <!-- TAB · Estudios -->
+            <div x-show="tab==='studies'" class="space-y-4 mt-5">
+              <template x-for="e in evalsOf(currentWorker().id)" :key="'st-'+e.id">
+                <div class="card p-5">
+                  <div class="flex items-baseline justify-between mb-3">
+                    <h3 class="display text-lg" x-text="'Evaluación '+dayjs(e.date).format('YYYY-MM-DD')"></h3>
+                    <span class="chip" :class="verdictChipClass(e.verdict)" x-text="verdictLabel(e.verdict)"></span>
+                  </div>
+                  <div class="grid md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div class="label mb-1">Audiometría · NOM-011-STPS-2001</div>
+                      <div class="mono text-xs">PTA OD <span x-text="e.audio?.ptaOd||'—'"></span> · OI <span x-text="e.audio?.ptaOi||'—'"></span> dB HL · Klockhoff <span x-text="e.audio?.klockhoff||'—'"></span></div>
+                    </div>
+                    <div>
+                      <div class="label mb-1">Espirometría · GOLD 2024</div>
+                      <div class="mono text-xs">FVC <span x-text="(e.spiro?.fvcPct||'—')+'%'"></span> · FEV1 <span x-text="(e.spiro?.fev1Pct||'—')+'%'"></span> · GOLD <span x-text="e.spiro?.gold||'—'"></span></div>
+                    </div>
+                    <div>
+                      <div class="label mb-1">ECG</div>
+                      <div class="text-xs" x-text="e.ecg?.findings||'Sin hallazgos.'"></div>
+                    </div>
+                    <div>
+                      <div class="label mb-1">Laboratorios</div>
+                      <div class="text-xs">
+                        Glucosa <span class="mono" x-text="(e.labs?.glucose||'—')+' mg/dL'"></span> ·
+                        HbA1c <span class="mono" x-text="(e.labs?.hba1c||'—')+'%'"></span> ·
+                        LDL <span class="mono" x-text="(e.labs?.ldl||'—')+' mg/dL'"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+              <div x-show="!evalsOf(currentWorker().id).length" class="card p-12 text-center text-ink2">Sin estudios todavía.</div>
+            </div>
+
+            <!-- TAB · NOM-035 -->
+            <div x-show="tab==='nom035'" class="card p-5 mt-5">
+              <h3 class="display text-xl mb-3">NOM-035-STPS-2018 · Historial</h3>
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-[11px] uppercase text-ink2 border-b hairline">
+                      <th class="py-2 pr-3">Fecha</th><th class="py-2 pr-3">Guía</th>
+                      <th class="py-2 pr-3">Puntaje</th><th class="py-2 pr-3">Nivel</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="e in evalsOf(currentWorker().id).filter(x=>x.nom035)" :key="'n35-'+e.id">
+                      <tr class="border-b hairline">
+                        <td class="py-2 pr-3 mono text-xs" x-text="dayjs(e.date).format('YYYY-MM-DD')"></td>
+                        <td class="py-2 pr-3">Guía III</td>
+                        <td class="py-2 pr-3 mono text-xs" x-text="e.nom035.score"></td>
+                        <td class="py-2 pr-3"><span class="chip" :class="n35ChipClass(e.nom035.level)" x-text="e.nom035.level"></span></td>
+                        <td class="py-2 text-right"><button class="btn btn-ghost btn-sm" @click="emitPdf('nom035', e.id)">PDF</button></td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- TAB · Documentos -->
+            <div x-show="tab==='docs'" class="card p-5 mt-5">
+              <h3 class="display text-xl mb-3">Documentos firmados</h3>
+              <p class="text-xs text-ink2 mb-3">Cada PDF lleva ID, SHA-256 y sello de tiempo. Compatible con e.firma SAT (firma simulada en cliente).</p>
+              <div class="grid md:grid-cols-2 gap-2">
+                <template x-for="d in documentsOf(currentWorker().id)" :key="d.id">
+                  <div class="card p-3 flex items-center justify-between">
+                    <div>
+                      <div class="text-sm font-medium" x-text="d.title"></div>
+                      <div class="text-[11px] text-ink2 mono" x-text="d.id+' · '+dayjs(d.createdAt).format('YYYY-MM-DD HH:mm')"></div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" @click="redownload(d)">↓</button>
+                  </div>
+                </template>
+                <div x-show="!documentsOf(currentWorker().id).length" class="text-ink2 text-sm">Aún no emites documentos para este trabajador.</div>
+              </div>
+            </div>
+
+            <!-- TAB · Notas con dictado -->
+            <div x-show="tab==='notes'" class="card p-5 mt-5">
+              <div class="flex items-start justify-between mb-3">
+                <div>
+                  <h3 class="display text-xl">Notas clínicas con dictado</h3>
+                  <p class="text-xs text-ink2">Captura observaciones especiales por voz. Usa Web Speech API en español de México.</p>
+                </div>
+                <div class="flex gap-2">
+                  <button class="btn" :class="dictating ? 'btn-danger' : 'btn-turq'" @click="toggleDictation('worker-note')">
+                    <span x-show="!dictating">● Dictar</span>
+                    <span x-show="dictating" class="flex items-center gap-2"><span class="pulse-dot"></span> Detener</span>
+                  </button>
+                  <button class="btn btn-ghost" @click="addNote(currentWorker().id)">+ Guardar nota</button>
+                </div>
+              </div>
+              <textarea class="field h-40 font-sans" placeholder="Comienza a dictar o escribe aquí…" x-model="noteDraft" id="worker-note"></textarea>
+
+              <div class="mt-5 space-y-2">
+                <template x-for="n in notesOf(currentWorker().id)" :key="n.id">
+                  <div class="card p-3">
+                    <div class="text-[11px] text-ink2 mono mb-1" x-text="dayjs(n.createdAt).format('YYYY-MM-DD HH:mm')+' · '+n.author"></div>
+                    <div class="text-sm whitespace-pre-wrap" x-text="n.text"></div>
+                  </div>
+                </template>
+                <div x-show="!notesOf(currentWorker().id).length" class="text-ink2 text-sm">Sin notas todavía.</div>
+              </div>
+            </div>
+
+          </div>
+        </template>
+      </section>
+
+      <!-- ═════════════════ NUEVA EVALUACIÓN (WIZARD) ═════════════════ -->
+      <section x-show="route==='new-eval'" x-transition class="space-y-5">
+        <div class="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div class="text-xs text-ink2 tracking-widest uppercase">Flujo clínico</div>
+            <h1 class="display text-4xl mt-1">Nueva evaluación médica</h1>
+            <p class="text-sm text-ink2 mt-1">Wizard de 7 pasos con motor de aptitud en vivo. Apto firmado en menos de 4 minutos.</p>
+          </div>
+        </div>
+
+        <!-- Stepper -->
+        <div class="card p-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <template x-for="(s, i) in stepsLabels" :key="s">
+              <div class="flex items-center gap-2">
+                <span class="step-dot" :class="evalStep > i+1 ? 'done' : (evalStep===i+1 ? 'current' : '')" x-text="i+1"></span>
+                <span class="text-xs" :class="evalStep===i+1 ? 'font-semibold' : 'text-ink2'" x-text="s"></span>
+                <span x-show="i<stepsLabels.length-1" class="text-ink2 mx-1">→</span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <!-- Panel principal -->
+          <div class="card p-5 lg:col-span-2 fade-up" :key="evalStep">
+
+            <!-- Paso 1: tipo + trabajador -->
+            <div x-show="evalStep===1" class="space-y-4">
+              <h2 class="display text-2xl">Paso 1 · Tipo de evaluación</h2>
+              <div>
+                <div class="label mb-1">Trabajador</div>
+                <select class="field" x-model="currentEval.workerId" @change="onWorkerChosen()">
+                  <option value="">— Selecciona —</option>
+                  <template x-for="w in workers" :key="w.id"><option :value="w.id" x-text="w.fullName + ' · ' + w.jobPosition"></option></template>
+                </select>
+              </div>
+              <div>
+                <div class="label mb-2">Tipo</div>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  <template x-for="t in evalTypes" :key="t.id">
+                    <button class="card p-3 text-left hover:border-turq" :class="currentEval.type===t.id && 'border-turq bg-turq3/30'" @click="currentEval.type=t.id">
+                      <div class="text-sm font-semibold" x-text="t.label"></div>
+                      <div class="text-[11px] text-ink2 mt-0.5" x-text="t.hint"></div>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paso 2: signos vitales -->
+            <div x-show="evalStep===2" class="space-y-4">
+              <h2 class="display text-2xl">Paso 2 · Signos vitales y antropometría</h2>
+              <p class="text-xs text-ink2">NOM-030-SSA2-2017 · Cálculo automático de IMC y MAP.</p>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div><div class="label">TA sistólica (mmHg)</div><input class="field mono" type="number" x-model.number="currentEval.vitals.sbp" @input="recomputeVerdict()"></div>
+                <div><div class="label">TA diastólica (mmHg)</div><input class="field mono" type="number" x-model.number="currentEval.vitals.dbp" @input="recomputeVerdict()"></div>
+                <div><div class="label">FC (lpm)</div><input class="field mono" type="number" x-model.number="currentEval.vitals.hr"></div>
+                <div><div class="label">FR (rpm)</div><input class="field mono" type="number" x-model.number="currentEval.vitals.rr"></div>
+                <div><div class="label">Temp (°C)</div><input class="field mono" type="number" step="0.1" x-model.number="currentEval.vitals.temp"></div>
+                <div><div class="label">SpO₂ (%)</div><input class="field mono" type="number" x-model.number="currentEval.vitals.spo2"></div>
+                <div><div class="label">Peso (kg)</div><input class="field mono" type="number" step="0.1" x-model.number="currentEval.vitals.weight" @input="computeBMI(); recomputeVerdict()"></div>
+                <div><div class="label">Talla (m)</div><input class="field mono" type="number" step="0.01" x-model.number="currentEval.vitals.height" @input="computeBMI(); recomputeVerdict()"></div>
+              </div>
+              <div class="card p-3 bg-turq3/30 border-turq">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  <div><div class="label">IMC</div><div class="mono text-lg" x-text="currentEval.vitals.bmi || '—'"></div></div>
+                  <div><div class="label">Clasificación IMC</div><div x-text="bmiClass(currentEval.vitals.bmi)"></div></div>
+                  <div><div class="label">MAP</div><div class="mono text-lg" x-text="computeMAP()"></div></div>
+                  <div><div class="label">Clasificación TA</div><div x-text="taClass(currentEval.vitals.sbp, currentEval.vitals.dbp)"></div></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paso 3: audiometría -->
+            <div x-show="evalStep===3" class="space-y-4">
+              <h2 class="display text-2xl">Paso 3 · Audiometría · NOM-011-STPS-2001</h2>
+              <p class="text-xs text-ink2">Umbral en dB HL. Cálculo automático de PTA (500/1000/2000 Hz) y clasificación Klockhoff.</p>
+
+              <div class="overflow-x-auto">
+                <table class="audio-grid w-full">
+                  <thead>
+                    <tr class="border-b hairline">
+                      <th class="text-left py-2">Frecuencia (Hz)</th>
+                      <th>250</th><th>500</th><th>1000</th><th>2000</th><th>3000</th><th>4000</th><th>6000</th><th>8000</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="py-1 pr-2 text-sm">Oído <strong>derecho</strong></td>
+                      <template x-for="f in ['250','500','1000','2000','3000','4000','6000','8000']" :key="'od-'+f">
+                        <td><input type="number" class="field mono" x-model.number="currentEval.audio.od[f]" @input="recomputeAudio(); recomputeVerdict()"></td>
+                      </template>
+                    </tr>
+                    <tr>
+                      <td class="py-1 pr-2 text-sm">Oído <strong>izquierdo</strong></td>
+                      <template x-for="f in ['250','500','1000','2000','3000','4000','6000','8000']" :key="'oi-'+f">
+                        <td><input type="number" class="field mono" x-model.number="currentEval.audio.oi[f]" @input="recomputeAudio(); recomputeVerdict()"></td>
+                      </template>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card p-3 bg-turq3/30 border-turq grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div><div class="label">PTA OD</div><div class="mono text-lg" x-text="(currentEval.audio.ptaOd||'—')+' dB'"></div></div>
+                <div><div class="label">PTA OI</div><div class="mono text-lg" x-text="(currentEval.audio.ptaOi||'—')+' dB'"></div></div>
+                <div><div class="label">Klockhoff</div><div class="text-lg" x-text="currentEval.audio.klockhoff||'—'"></div></div>
+                <div><div class="label">Frec. altas (4–8k)</div><div class="mono text-lg" x-text="(currentEval.audio.highFreq||'—')+' dB'"></div></div>
+              </div>
+            </div>
+
+            <!-- Paso 4: espirometría, ECG, labs -->
+            <div x-show="evalStep===4" class="space-y-4">
+              <h2 class="display text-2xl">Paso 4 · Espirometría / ECG / Laboratorios</h2>
+              <p class="text-xs text-ink2">Espirometría según GOLD 2024 · LOINC para tracking eHT.</p>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="card p-4">
+                  <h4 class="font-semibold mb-2 text-sm">Espirometría</h4>
+                  <div class="grid grid-cols-3 gap-2">
+                    <div><div class="label">FVC %</div><input class="field mono" type="number" x-model.number="currentEval.spiro.fvcPct" @input="recomputeSpiro(); recomputeVerdict()"></div>
+                    <div><div class="label">FEV1 %</div><input class="field mono" type="number" x-model.number="currentEval.spiro.fev1Pct" @input="recomputeSpiro(); recomputeVerdict()"></div>
+                    <div><div class="label">FEV1/FVC</div><input class="field mono" type="number" step="0.01" x-model.number="currentEval.spiro.ratio" @input="recomputeSpiro(); recomputeVerdict()"></div>
+                  </div>
+                  <div class="text-xs text-ink2 mt-2">Clasificación GOLD: <strong x-text="currentEval.spiro.gold || '—'"></strong></div>
+                </div>
+
+                <div class="card p-4">
+                  <h4 class="font-semibold mb-2 text-sm">ECG en reposo</h4>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div><div class="label">FC (lpm)</div><input class="field mono" type="number" x-model.number="currentEval.ecg.hr"></div>
+                    <div>
+                      <div class="label">Hallazgos</div>
+                      <select class="field" x-model="currentEval.ecg.severity" @change="recomputeVerdict()">
+                        <option value="none">Sin alteraciones</option>
+                        <option value="minor">Hallazgos menores</option>
+                        <option value="significant">Hallazgos significativos</option>
+                      </select>
+                    </div>
+                  </div>
+                  <textarea class="field mt-2 text-sm" placeholder="Descripción libre del trazado…" x-model="currentEval.ecg.findings"></textarea>
+                </div>
+
+                <div class="card p-4 md:col-span-2">
+                  <h4 class="font-semibold mb-2 text-sm">Laboratorios clínicos</h4>
+                  <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+                    <div><div class="label">Glucosa ayuno</div><input class="field mono" type="number" x-model.number="currentEval.labs.glucose" @input="recomputeVerdict()"></div>
+                    <div><div class="label">HbA1c (%)</div><input class="field mono" type="number" step="0.1" x-model.number="currentEval.labs.hba1c" @input="recomputeVerdict()"></div>
+                    <div><div class="label">Colesterol total</div><input class="field mono" type="number" x-model.number="currentEval.labs.cholesterol"></div>
+                    <div><div class="label">LDL</div><input class="field mono" type="number" x-model.number="currentEval.labs.ldl"></div>
+                    <div><div class="label">Creatinina</div><input class="field mono" type="number" step="0.01" x-model.number="currentEval.labs.creatinine"></div>
+                  </div>
+                  <div class="mt-3 flex items-center gap-2 text-sm">
+                    <input type="checkbox" x-model="currentEval.labs.toxPositive" @change="recomputeVerdict()" id="tox">
+                    <label for="tox">Tamizaje toxicológico <strong>positivo</strong> (NOM-030-STPS-2009)</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paso 5: NOM-035 -->
+            <div x-show="evalStep===5" class="space-y-4">
+              <h2 class="display text-2xl">Paso 5 · NOM-035-STPS-2018 · Guía III</h2>
+              <p class="text-xs text-ink2">Cuestionario abreviado por dominio. Puntajes 0–10 por dominio (resumido para flujo rápido).</p>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <template x-for="dom in n35Domains" :key="dom.key">
+                  <div>
+                    <div class="label" x-text="dom.label"></div>
+                    <input type="range" min="0" max="10" class="w-full accent-turq" x-model.number="currentEval.nom035.responses[dom.key]" @input="recomputeNom035(); recomputeVerdict()">
+                    <div class="flex justify-between text-[10px] text-ink2 mono"><span>0</span><span x-text="currentEval.nom035.responses[dom.key]"></span><span>10</span></div>
+                  </div>
+                </template>
+              </div>
+              <div class="card p-3 bg-turq3/30 border-turq grid grid-cols-2 gap-3">
+                <div><div class="label">Puntaje total</div><div class="mono text-lg" x-text="currentEval.nom035.score"></div></div>
+                <div><div class="label">Nivel</div><div class="text-lg" x-text="currentEval.nom035.level"></div></div>
+              </div>
+            </div>
+
+            <!-- Paso 6: notas (dictado) -->
+            <div x-show="evalStep===6" class="space-y-4">
+              <h2 class="display text-2xl">Paso 6 · Notas clínicas</h2>
+              <p class="text-xs text-ink2">Notas especiales del médico evaluador. Puede dictarse por voz.</p>
+              <div class="flex gap-2">
+                <button class="btn" :class="dictating ? 'btn-danger' : 'btn-turq'" @click="toggleDictation('eval-notes')">
+                  <span x-show="!dictating">● Iniciar dictado</span>
+                  <span x-show="dictating" class="flex items-center gap-2"><span class="pulse-dot"></span> Detener</span>
+                </button>
+                <button class="btn btn-ghost" @click="currentEval.notes=''">Limpiar</button>
+              </div>
+              <textarea class="field h-44 font-sans" placeholder="Dicta o escribe observaciones, fundamentación clínica, restricciones específicas…" x-model="currentEval.notes" id="eval-notes"></textarea>
+            </div>
+
+            <!-- Paso 7: firma y emisión -->
+            <div x-show="evalStep===7" class="space-y-4">
+              <h2 class="display text-2xl">Paso 7 · Revisar, firmar y emitir</h2>
+              <p class="text-xs text-ink2">El motor PROPONE; el médico SIGNA. Ningún veredicto no-APTO se emite sin firma autógrafa o digital.</p>
+
+              <div class="verdict" :class="verdictBgClass(currentEval.engine.verdict)">
+                <div class="flex-1">
+                  <div class="text-[11px] uppercase tracking-widest opacity-75">Dictamen propuesto</div>
+                  <div class="display text-3xl mt-0.5" x-text="verdictLabel(currentEval.engine.verdict)"></div>
+                  <div class="text-xs opacity-90 mt-1">Confianza del motor: <span x-text="Math.round((currentEval.engine.confidence||0)*100)+'%'"></span> · <span x-text="(currentEval.engine.firedRules||[]).length"></span> reglas activas</div>
+                </div>
+              </div>
+
+              <div class="card p-4">
+                <h4 class="text-sm font-semibold mb-2">Fundamentación</h4>
+                <ul class="text-sm list-disc pl-5 space-y-1">
+                  <template x-for="r in currentEval.engine.firedRules||[]" :key="r.id">
+                    <li><strong x-text="r.id"></strong>: <span x-text="r.name"></span> <span class="text-ink2 text-xs">(<span x-text="r.nom"></span>)</span></li>
+                  </template>
+                  <li x-show="!(currentEval.engine.firedRules||[]).length" class="text-ink2 list-none">Sin reglas activas. Veredicto APTO por defecto.</li>
+                </ul>
+              </div>
+
+              <div class="card p-4">
+                <h4 class="text-sm font-semibold mb-2">Restricciones a incluir en el apto</h4>
+                <ul class="text-sm list-disc pl-5 space-y-1">
+                  <template x-for="(r, i) in currentEval.engine.restrictions||[]" :key="i">
+                    <li x-text="r"></li>
+                  </template>
+                  <li x-show="!(currentEval.engine.restrictions||[]).length" class="text-ink2 list-none">Sin restricciones.</li>
+                </ul>
+              </div>
+
+              <div class="card p-4">
+                <h4 class="text-sm font-semibold mb-2">Firma</h4>
+                <div class="grid md:grid-cols-3 gap-3 mb-3">
+                  <label class="flex items-center gap-2 text-sm"><input type="radio" value="PKCS7_LOCAL" x-model="currentEval.signature.mode"> PKCS#7 local</label>
+                  <label class="flex items-center gap-2 text-sm"><input type="radio" value="EFIRMA_SAT" x-model="currentEval.signature.mode"> e.firma SAT</label>
+                  <label class="flex items-center gap-2 text-sm"><input type="radio" value="BIOMETRIC" x-model="currentEval.signature.mode"> Biométrica</label>
+                </div>
+                <div class="grid md:grid-cols-2 gap-3">
+                  <div><div class="label">Médico firmante</div><input class="field" x-model="currentEval.signature.doctorName"></div>
+                  <div><div class="label">Cédula profesional</div><input class="field mono" x-model="currentEval.signature.doctorLicense"></div>
+                </div>
+              </div>
+
+              <div class="flex justify-end gap-2 pt-2">
+                <button class="btn btn-ghost" @click="evalStep=6">← Volver</button>
+                <button class="btn btn-primary" @click="finalizeEvaluation()">Firmar y emitir apto médico</button>
+              </div>
+            </div>
+
+            <!-- Navegación -->
+            <div class="flex items-center justify-between mt-6 pt-4 border-t hairline" x-show="evalStep<7">
+              <button class="btn btn-ghost" @click="evalStep>1 && evalStep--" :disabled="evalStep===1">← Anterior</button>
+              <div class="text-xs text-ink2">Paso <span x-text="evalStep"></span> de 7 · auto-guardado</div>
+              <button class="btn btn-turq" @click="evalNext()">Siguiente →</button>
+            </div>
+          </div>
+
+          <!-- Sidebar motor LIVE -->
+          <aside class="card p-5 h-fit sticky top-20">
+            <div class="text-[11px] uppercase tracking-widest text-ink2 mb-2">Motor de aptitud · LIVE</div>
+            <div class="verdict mb-3" :class="verdictBgClass(currentEval.engine.verdict)">
+              <div>
+                <div class="display text-xl" x-text="verdictLabel(currentEval.engine.verdict)"></div>
+                <div class="text-xs opacity-90 mt-1">Confianza <span x-text="Math.round((currentEval.engine.confidence||0)*100)+'%'"></span></div>
+              </div>
+            </div>
+            <div class="text-xs text-ink2 mb-2" x-text="(currentEval.engine.firedRules||[]).length+' reglas activas'"></div>
+            <div class="space-y-1 max-h-72 overflow-y-auto">
+              <template x-for="r in currentEval.engine.firedRules||[]" :key="r.id">
+                <div class="p-2 rounded-md border hairline">
+                  <div class="flex items-center justify-between">
+                    <div class="text-xs font-semibold" x-text="r.name"></div>
+                    <span class="chip" :class="verdictChipClass(r.verdict)" x-text="verdictLabel(r.verdict).split(' ')[0]"></span>
+                  </div>
+                  <div class="text-[10px] text-ink2 mono mt-0.5" x-text="r.id+' · '+r.nom"></div>
+                </div>
+              </template>
+              <div x-show="!(currentEval.engine.firedRules||[]).length" class="text-xs text-ink2 italic">Sin reglas disparadas. El veredicto por defecto es APTO.</div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ═════════════════ ACCIDENTES ═════════════════ -->
+      <section x-show="route==='accidents'" x-transition class="space-y-5">
+        <div class="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <div class="text-xs text-ink2 tracking-widest uppercase">STPS · IMSS</div>
+            <h1 class="display text-4xl mt-1">Accidentes laborales</h1>
+            <p class="text-sm text-ink2 mt-1">Aviso ST-7 / Dictamen ST-2 / Defunción ST-9. Notificación al IMSS en 72 h.</p>
+          </div>
+          <button class="btn btn-turq" @click="newAccident()">+ Registrar accidente</button>
+        </div>
+
+        <template x-if="editingAccident">
+          <div class="card p-5 fade-up">
+            <h3 class="display text-2xl mb-3">Captura ST-7</h3>
+            <div class="grid md:grid-cols-2 gap-3 text-sm">
+              <div>
+                <div class="label">Trabajador</div>
+                <select class="field" x-model="editingAccident.workerId">
+                  <option value="">— Selecciona —</option>
+                  <template x-for="w in workers" :key="w.id"><option :value="w.id" x-text="w.fullName"></option></template>
+                </select>
+              </div>
+              <div><div class="label">Fecha y hora del evento</div><input class="field" type="datetime-local" x-model="editingAccident.datetime"></div>
+              <div class="md:col-span-2"><div class="label">Lugar exacto</div><input class="field" x-model="editingAccident.location"></div>
+              <div><div class="label">En horario laboral</div><select class="field" x-model="editingAccident.onDuty"><option>Sí</option><option>No</option></select></div>
+              <div><div class="label">Es accidente de trayecto</div><select class="field" x-model="editingAccident.commute"><option>No</option><option>Sí</option></select></div>
+              <div class="md:col-span-2"><div class="label">Testigos</div><input class="field" x-model="editingAccident.witnesses"></div>
+              <div class="md:col-span-2">
+                <div class="label">Mecanismo lesional</div>
+                <textarea class="field h-24" x-model="editingAccident.mechanism" placeholder="Describe cómo ocurrió…"></textarea>
+              </div>
+              <div><div class="label">Región anatómica</div><input class="field" x-model="editingAccident.bodyRegion"></div>
+              <div><div class="label">Tipo de lesión</div><input class="field" x-model="editingAccident.injuryType"></div>
+              <div><div class="label">Diagnóstico CIE-10</div><input class="field mono" x-model="editingAccident.icd10"></div>
+              <div><div class="label">Días estimados de incapacidad</div><input class="field mono" type="number" x-model.number="editingAccident.estimatedDays"></div>
+              <div class="md:col-span-2"><div class="label">Tratamiento inicial</div><textarea class="field h-20" x-model="editingAccident.treatment"></textarea></div>
+              <div class="md:col-span-2"><div class="label">Calificación preliminar</div><textarea class="field h-20" x-model="editingAccident.calification" placeholder="Probable accidente de trabajo…"></textarea></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+              <button class="btn btn-ghost" @click="editingAccident=null">Cancelar</button>
+              <button class="btn btn-primary" @click="saveAccident()">Guardar y emitir ST-7</button>
+            </div>
+          </div>
+        </template>
+
+        <div class="card p-5">
+          <h3 class="display text-xl mb-3">Registro</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-[11px] uppercase text-ink2 border-b hairline">
+                  <th class="py-2 pr-3">Fecha</th><th class="py-2 pr-3">Trabajador</th>
+                  <th class="py-2 pr-3">Lesión</th><th class="py-2 pr-3">CIE-10</th>
+                  <th class="py-2 pr-3">Días</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="a in accidents" :key="a.id">
+                  <tr class="border-b hairline">
+                    <td class="py-2 pr-3 mono text-xs" x-text="dayjs(a.datetime).format('YYYY-MM-DD HH:mm')"></td>
+                    <td class="py-2 pr-3" x-text="workerName(a.workerId)"></td>
+                    <td class="py-2 pr-3" x-text="a.bodyRegion+' · '+a.injuryType"></td>
+                    <td class="py-2 pr-3 mono text-xs" x-text="a.icd10||'—'"></td>
+                    <td class="py-2 pr-3 mono text-xs" x-text="a.estimatedDays||'—'"></td>
+                    <td class="py-2 text-right">
+                      <button class="btn btn-ghost btn-sm" @click="emitPdf('st7', a.id)">ST-7</button>
+                      <button class="btn btn-ghost btn-sm" @click="emitPdf('st2', a.id)">ST-2</button>
+                    </td>
+                  </tr>
+                </template>
+                <tr x-show="accidents.length===0"><td colspan="6" class="py-8 text-center text-ink2">Sin accidentes registrados.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═════════════════ REPORTES ═════════════════ -->
+      <section x-show="route==='reports'" x-transition class="space-y-5">
+        <div>
+          <div class="text-xs text-ink2 tracking-widest uppercase">Power BI / NOM-019</div>
+          <h1 class="display text-4xl mt-1">Reportes ejecutivos</h1>
+        </div>
+        <div class="card p-5">
+          <h3 class="display text-xl mb-3">Reporte trimestral</h3>
+          <div class="grid md:grid-cols-2 gap-3 text-sm">
+            <div><div class="label">Empresa</div><input class="field" x-model="reportForm.company"></div>
+            <div><div class="label">Periodo</div><input class="field" x-model="reportForm.period"></div>
+          </div>
+          <div class="flex justify-end mt-4 gap-2">
+            <button class="btn btn-turq" @click="emitPdf('reporte')">Generar PDF ejecutivo</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═════════════════ DOCUMENTOS GLOBAL ═════════════════ -->
+      <section x-show="route==='documents'" x-transition class="space-y-5">
+        <div>
+          <div class="text-xs text-ink2 tracking-widest uppercase">Repositorio</div>
+          <h1 class="display text-4xl mt-1">Documentos firmados</h1>
+        </div>
+        <div class="card p-5">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-[11px] uppercase text-ink2 border-b hairline">
+                  <th class="py-2 pr-3">ID</th><th class="py-2 pr-3">Fecha</th><th class="py-2 pr-3">Documento</th>
+                  <th class="py-2 pr-3">Trabajador</th><th class="py-2 pr-3">SHA-256</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="d in documents.slice().reverse()" :key="d.id">
+                  <tr class="border-b hairline">
+                    <td class="py-2 pr-3 mono text-xs" x-text="d.id"></td>
+                    <td class="py-2 pr-3 mono text-xs" x-text="dayjs(d.createdAt).format('YYYY-MM-DD HH:mm')"></td>
+                    <td class="py-2 pr-3" x-text="d.title"></td>
+                    <td class="py-2 pr-3" x-text="workerName(d.workerId)||'—'"></td>
+                    <td class="py-2 pr-3 mono text-[10px]" x-text="d.sha256.substring(0,16)+'…'"></td>
+                    <td class="py-2 text-right"><button class="btn btn-ghost btn-sm" @click="redownload(d)">↓ PDF</button></td>
+                  </tr>
+                </template>
+                <tr x-show="documents.length===0"><td colspan="6" class="py-8 text-center text-ink2">Aún no hay documentos.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═════════════════ CATÁLOGOS ═════════════════ -->
+      <section x-show="route==='catalogs'" x-transition class="space-y-5">
+        <div>
+          <div class="text-xs text-ink2 tracking-widest uppercase">Configuración</div>
+          <h1 class="display text-4xl mt-1">Empresas, riesgos y EPP</h1>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-4">
+          <div class="card p-5">
+            <h3 class="display text-xl mb-2">Empresas</h3>
+            <div class="flex gap-2 mb-2">
+              <input class="field" placeholder="Nombre" x-model="catalogForm.companyName">
+              <input class="field max-w-[150px] mono" placeholder="RFC" x-model="catalogForm.companyRfc">
+              <button class="btn btn-turq btn-sm" @click="addCompany()">+</button>
+            </div>
+            <div class="space-y-1 max-h-64 overflow-y-auto">
+              <template x-for="c in catalogs.companies" :key="c.id">
+                <div class="flex items-center justify-between text-sm py-1">
+                  <div><strong x-text="c.name"></strong> <span class="text-ink2 text-xs mono" x-text="c.rfc"></span></div>
+                  <button class="text-ink2 hover:text-rose2 text-xs" @click="removeCompany(c.id)">eliminar</button>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <h3 class="display text-xl mb-2">Riesgos ocupacionales</h3>
+            <div class="flex gap-2 mb-2">
+              <input class="field" placeholder="Nombre del riesgo" x-model="catalogForm.riskName">
+              <button class="btn btn-turq btn-sm" @click="addRisk()">+</button>
+            </div>
+            <div class="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
+              <template x-for="r in catalogs.risks" :key="r">
+                <span class="chip chip-amber cursor-pointer" @click="removeRisk(r)" x-text="r+' ×'"></span>
+              </template>
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <h3 class="display text-xl mb-2">EPP</h3>
+            <div class="flex gap-2 mb-2">
+              <input class="field" placeholder="Nombre del EPP" x-model="catalogForm.eppName">
+              <button class="btn btn-turq btn-sm" @click="addEpp()">+</button>
+            </div>
+            <div class="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto">
+              <template x-for="e in catalogs.epps" :key="e">
+                <span class="chip chip-turq cursor-pointer" @click="removeEpp(e)" x-text="e+' ×'"></span>
+              </template>
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <h3 class="display text-xl mb-2">Puestos</h3>
+            <div class="flex gap-2 mb-2">
+              <input class="field" placeholder="Nombre del puesto" x-model="catalogForm.positionName">
+              <button class="btn btn-turq btn-sm" @click="addPosition()">+</button>
+            </div>
+            <div class="space-y-1 max-h-64 overflow-y-auto">
+              <template x-for="p in catalogs.positions" :key="p">
+                <div class="flex items-center justify-between text-sm py-1">
+                  <span x-text="p"></span>
+                  <button class="text-ink2 hover:text-rose2 text-xs" @click="removePosition(p)">eliminar</button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═════════════════ REGLAS DEL MOTOR ═════════════════ -->
+      <section x-show="route==='rules'" x-transition class="space-y-5">
+        <div>
+          <div class="text-xs text-ink2 tracking-widest uppercase">Motor de aptitud</div>
+          <h1 class="display text-4xl mt-1">Reglas clínicas</h1>
+          <p class="text-sm text-ink2 mt-1">16 reglas seed cargadas. El motor PROPONE; el médico SIGNA.</p>
+        </div>
+        <div class="space-y-2">
+          <template x-for="r in rules" :key="r.id">
+            <div class="card p-4">
+              <div class="flex items-center justify-between gap-3 flex-wrap">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="chip chip-ink mono" x-text="r.id"></span>
+                    <span class="font-medium" x-text="r.name"></span>
+                  </div>
+                  <div class="text-xs text-ink2 mt-1" x-text="r.nom + ' · severidad ' + r.severity"></div>
+                </div>
+                <span class="chip" :class="verdictChipClass(r.verdict)" x-text="verdictLabel(r.verdict)"></span>
+              </div>
+              <div class="text-xs text-ink2 mt-2 italic" x-text="r.restriction"></div>
+            </div>
+          </template>
+        </div>
+      </section>
+
+      <!-- ═════════════════ SETTINGS ═════════════════ -->
+      <section x-show="route==='settings'" x-transition class="space-y-5">
+        <div>
+          <div class="text-xs text-ink2 tracking-widest uppercase">Preferencias</div>
+          <h1 class="display text-4xl mt-1">Configuración personal</h1>
+        </div>
+        <div class="card p-5 grid md:grid-cols-2 gap-3">
+          <div><div class="label">Nombre</div><input class="field" disabled :value="user?.name || '—'"></div>
+          <div><div class="label">Correo</div><input class="field" disabled :value="user?.email || '—'"></div>
+          <div><div class="label">Rol</div><input class="field" disabled :value="user?.role || '—'"></div>
+          <div><div class="label">Último acceso</div><input class="field" disabled :value="user?.last_login ? dayjs(user.last_login).format('DD/MM/YYYY HH:mm') : '—'"></div>
+        </div>
+        <div class="card p-5">
+          <h3 class="display text-xl mb-2">Datos</h3>
+          <p class="text-xs text-ink2 mb-3">La información se almacena en la base de datos centralizada. Usa el botón de abajo para cerrar sesión.</p>
+          <div class="flex gap-2 flex-wrap">
+            <button class="btn btn-turq btn-sm" @click="exportBackup()">⤓ Exportar respaldo JSON</button>
+            <label class="btn btn-ghost btn-sm cursor-pointer">
+              ⤒ Importar respaldo
+              <input type="file" accept="application/json" class="hidden" @change="importBackup($event)">
+            </label>
+            <button class="btn btn-danger btn-sm" @click="confirmReset()">Reiniciar todo</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ═════════════════ MODAL: NUEVO/EDITAR TRABAJADOR ═════════════════ -->
+<template x-if="workerForm">
+  <div class="modal-bg" @click.self="workerForm=null">
+    <div class="card p-6 max-w-3xl w-full fade-up max-h-[90vh] overflow-y-auto">
+      <h3 class="display text-2xl mb-3" x-text="workerForm.id ? 'Editar expediente' : 'Nuevo expediente'"></h3>
+      <div class="grid md:grid-cols-2 gap-3 text-sm">
+        <div class="md:col-span-2"><div class="label">Nombre completo *</div><input class="field" x-model="workerForm.fullName"></div>
+        <div><div class="label">CURP *</div><input class="field mono uppercase" maxlength="18" x-model="workerForm.curp"></div>
+        <div><div class="label">NSS</div><input class="field mono" x-model="workerForm.nss"></div>
+        <div><div class="label">RFC</div><input class="field mono uppercase" x-model="workerForm.rfc"></div>
+        <div><div class="label">Fecha de nacimiento *</div><input class="field" type="date" x-model="workerForm.birthDate" @change="workerForm.age = computeAge(workerForm.birthDate)"></div>
+        <div><div class="label">Sexo</div><select class="field" x-model="workerForm.sex"><option>Masculino</option><option>Femenino</option><option>Prefiere no decir</option></select></div>
+        <div><div class="label">Número de empleado</div><input class="field mono" x-model="workerForm.employeeNo"></div>
+        <div>
+          <div class="label">Empresa</div>
+          <select class="field" x-model="workerForm.company"><option value="">—</option><template x-for="c in catalogs.companies" :key="c.id"><option :value="c.name" x-text="c.name"></option></template></select>
+        </div>
+        <div><div class="label">Centro de trabajo</div><input class="field" x-model="workerForm.worksite"></div>
+        <div>
+          <div class="label">Puesto</div>
+          <select class="field" x-model="workerForm.jobPosition"><option value="">—</option><template x-for="p in catalogs.positions" :key="p"><option x-text="p"></option></template></select>
+        </div>
+        <div class="md:col-span-2">
+          <div class="label">Riesgos</div>
+          <div class="flex flex-wrap gap-1.5">
+            <template x-for="r in catalogs.risks" :key="r">
+              <span class="chip cursor-pointer" :class="(workerForm.risks||[]).includes(r) ? 'chip-amber' : 'chip-ink opacity-60'" @click="toggleArr(workerForm,'risks',r)" x-text="r"></span>
+            </template>
+          </div>
+        </div>
+        <div class="md:col-span-2">
+          <div class="label">EPP</div>
+          <div class="flex flex-wrap gap-1.5">
+            <template x-for="e in catalogs.epps" :key="e">
+              <span class="chip cursor-pointer" :class="(workerForm.epp||[]).includes(e) ? 'chip-turq' : 'chip-ink opacity-60'" @click="toggleArr(workerForm,'epp',e)" x-text="e"></span>
+            </template>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-4">
+        <button class="btn btn-ghost" @click="workerForm=null">Cancelar</button>
+        <button class="btn btn-primary" @click="saveWorker()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+</div><!-- /#app -->
+
+<script>
+/* ──────────────────────────────────────────────────────────────────
+ * PREVITA OHP — SPA single-file
+ * Persistencia local · Motor de aptitud · Web Speech · jsPDF
+ * ────────────────────────────────────────────────────────────────── */
+
+const STORAGE_KEY = "previta_ohp_v1";
+
+function uid(prefix="ID"){ return prefix+"-"+Math.random().toString(36).slice(2,8).toUpperCase()+"-"+Date.now().toString(36).slice(-4).toUpperCase(); }
+
+// SHA-256 (Web Crypto) → hex string
+async function sha256(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest("SHA-256", enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+// ───────────── Reglas seed (mismo set que el aptitude_rules.yaml entregado)
+const SEED_RULES = [
+  { id:"R-001", name:"Crisis hipertensiva", verdict:"NO_APTO_TEMPORAL", severity:10, nom:"NOM-030-SSA2-2017",
+    when: e => e.vitals.sbp>=180 || e.vitals.dbp>=120,
+    restriction: "Suspensión inmediata. Derivar a urgencias." },
+  { id:"R-002", name:"HAS grado 2 no controlada", verdict:"APTO_RESTRICCIONES", severity:7, nom:"NOM-030-SSA2-2017",
+    when: e => (e.vitals.sbp>=160 && e.vitals.sbp<=179) || (e.vitals.dbp>=100 && e.vitals.dbp<=119),
+    restriction: "Restricción para alturas, conducción profesional y maquinaria crítica." },
+  { id:"R-003", name:"HAS grado 1", verdict:"APTO_RESTRICCIONES", severity:4, nom:"NOM-030-SSA2-2017",
+    when: e => (e.vitals.sbp>=140 && e.vitals.sbp<=159) || (e.vitals.dbp>=90 && e.vitals.dbp<=99),
+    restriction: "Vigilancia de TA mensual durante 3 meses." },
+  { id:"R-004", name:"Obesidad grado III", verdict:"APTO_RESTRICCIONES", severity:5, nom:"NOM-008-SSA3-2017",
+    when: e => e.vitals.bmi>=40,
+    restriction: "Restricción para esfuerzo físico intenso, alturas y espacios confinados." },
+  { id:"R-005", name:"Hipoacusia severa (Klockhoff IV-V)", verdict:"NO_APTO_TEMPORAL", severity:8, nom:"NOM-011-STPS-2001",
+    when: e => ["IV","V"].includes(e.audio?.klockhoff),
+    restriction: "No apto para ruido > 85 dB sin control audiológico. Derivar a ORL." },
+  { id:"R-006", name:"Hipoacusia moderada con exposición a ruido", verdict:"APTO_RESTRICCIONES", severity:5, nom:"NOM-011-STPS-2001",
+    when: e => ["II","III","II-III"].includes(e.audio?.klockhoff) && (e.worker?.risks||[]).some(r=>/ruido/i.test(r)),
+    restriction: "EPP auditivo doble. Vigilancia audiométrica semestral." },
+  { id:"R-007", name:"EPOC GOLD III-IV", verdict:"NO_APTO_DEFINITIVO", severity:9, nom:"GOLD 2024",
+    when: e => ["III","IV","3","4"].includes(String(e.spiro?.gold||"")),
+    restriction: "No apto para polvos, humos, gases o esfuerzo intenso." },
+  { id:"R-008", name:"DM2 descompensada", verdict:"APTO_RESTRICCIONES", severity:6, nom:"NOM-015-SSA2-2010",
+    when: e => (e.labs?.hba1c>=9) || (e.labs?.glucose>=200),
+    restriction: "Restricción para alturas, conducción y maquinaria pesada." },
+  { id:"R-009", name:"Prediabetes", verdict:"APTO", severity:2, nom:"ADA 2024",
+    when: e => (e.labs?.glucose>=100 && e.labs?.glucose<=125) || (e.labs?.hba1c>=5.7 && e.labs?.hba1c<=6.4),
+    restriction: "Apto. Cambios de estilo de vida y reevaluación anual." },
+  { id:"R-010", name:"Toxicológico positivo", verdict:"NO_APTO_TEMPORAL", severity:9, nom:"NOM-030-STPS-2009",
+    when: e => e.labs?.toxPositive===true,
+    restriction: "Suspensión. Programa de rehabilitación." },
+  { id:"R-011", name:"ECG con hallazgos significativos", verdict:"NO_APTO_TEMPORAL", severity:8, nom:"NOM-030-SSA2-2017",
+    when: e => e.ecg?.severity==="significant",
+    restriction: "Suspensión. Derivar a cardiología antes de reincorporación." },
+  { id:"R-012", name:"Riesgo psicosocial alto", verdict:"APTO_RESTRICCIONES", severity:6, nom:"NOM-035-STPS-2018",
+    when: e => ["Alto","Muy alto"].includes(e.nom035?.level),
+    restriction: "Plan de intervención NOM-035 numeral 5.7. Atención individual." },
+  { id:"R-013", name:"Riesgo psicosocial medio", verdict:"APTO", severity:3, nom:"NOM-035-STPS-2018",
+    when: e => e.nom035?.level === "Medio",
+    restriction: "Acciones grupales: pausas activas, manejo de carga." },
+  { id:"R-014", name:"Minería + audiometría limítrofe", verdict:"APTO_RESTRICCIONES", severity:5, nom:"NOM-011-STPS-2001",
+    when: e => /miner/i.test(e.worker?.jobPosition||"") && (e.audio?.ptaOi||0) >= 35,
+    restriction: "EPP doble y rotación a áreas de menor exposición." },
+  { id:"R-015", name:"Alturas con HAS", verdict:"APTO_RESTRICCIONES", severity:7, nom:"NOM-009-STPS-2011",
+    when: e => (e.worker?.risks||[]).some(r=>/altura/i.test(r)) && (e.vitals.sbp>=140),
+    restriction: "No apto para alturas > 1.8 m hasta control tensional." },
+  { id:"R-016", name:"Petroquímica con espirometría reducida", verdict:"APTO_RESTRICCIONES", severity:6, nom:"NOM-010-STPS-2014",
+    when: e => /petroqu/i.test(e.worker?.company||"") && (e.spiro?.fev1Pct||100) < 80,
+    restriction: "EPP respiratorio. Monitoreo biológico de solventes." },
+];
+
+const VERDICT_ORDER = ["APTO","APTO_RESTRICCIONES","NO_APTO_TEMPORAL","NO_APTO_DEFINITIVO"];
+function verdictMax(a, b){ return VERDICT_ORDER.indexOf(b)>VERDICT_ORDER.indexOf(a) ? b : a; }
+
+// Motor de aptitud (versión JS de aptitude_engine.py)
+function runEngine(input){
+  const fired = [];
+  let verdict = "APTO";
+  const restrictions = [];
+  for (const rule of SEED_RULES){
+    try {
+      if (rule.when(input)){
+        fired.push(rule);
+        verdict = verdictMax(verdict, rule.verdict);
+        if (rule.restriction && rule.verdict !== "APTO") restrictions.push(rule.restriction);
+      }
+    } catch(_){}
+  }
+  const sevSum = fired.reduce((s,r)=>s+r.severity, 0);
+  const confidence = Math.max(0.50, 0.95 - 0.04*sevSum);
+  return { verdict, confidence, firedRules: fired, restrictions };
+}
+
+// NOM-035 nivel desde puntaje
+function n35Level(score){
+  if (score < 20) return "Nulo o despreciable";
+  if (score < 45) return "Bajo";
+  if (score < 70) return "Medio";
+  if (score < 90) return "Alto";
+  return "Muy alto";
+}
+
+// Web Speech
+function makeRecognition(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+  const r = new SR();
+  r.lang = "es-MX";
+  r.continuous = true;
+  r.interimResults = false;
+  return r;
+}
+
+/* ─────────────── Alpine app ─────────────── */
+function ohpApp(){
+  return {
+    // ──────── state ────────
+    dark: false,
+    sidebarOpen: false,
+    route: "dashboard",
+    toast: null,
+    modal: null,
+    search: "",
+
+    user: null,
+    appReady: false,
+
+    workers: [],
+    evaluations: [],
+    accidents: [],
+    documents: [],
+    notes: [],
+
+    catalogs: {
+      companies: [],
+      positions: [],
+      risks: [],
+      epps: [],
+    },
+    catalogForm: { companyName:"", companyRfc:"", riskName:"", eppName:"", positionName:"" },
+    rules: SEED_RULES.map(r => ({ id:r.id, name:r.name, verdict:r.verdict, severity:r.severity, nom:r.nom, restriction:r.restriction })),
+
+    // worker form modal
+    workerForm: null,
+    currentWorkerId: null,
+
+    // dictation
+    dictating: false,
+    recognition: null,
+    dictationTarget: null,
+    noteDraft: "",
+
+    // accident edit
+    editingAccident: null,
+
+    // report
+    reportForm: { company:"PREVITA Demo", period: "Q2 " + new Date().getFullYear() },
+
+    // wizard
+    evalStep: 1,
+    stepsLabels: ["Tipo","Vitales","Audiometría","Espiro/ECG/Labs","NOM-035","Notas","Firma"],
+    evalTypes: [
+      { id:"ingreso", label:"Ingreso", hint:"Pre-empleo" },
+      { id:"periodico", label:"Periódico", hint:"Anual / semestral" },
+      { id:"reingreso", label:"Reingreso", hint:"Vuelta a labores" },
+      { id:"especial", label:"Especial", hint:"Cambio de puesto" },
+      { id:"egreso", label:"Egreso", hint:"Salida del empleo" },
+      { id:"retorno", label:"Retorno accidente", hint:"Post-incapacidad" },
+    ],
+    n35Domains: [
+      { key:"ambiente", label:"Ambiente de trabajo" },
+      { key:"actividad", label:"Factores propios de la actividad" },
+      { key:"tiempo", label:"Organización del tiempo" },
+      { key:"liderazgo", label:"Liderazgo y relaciones" },
+      { key:"entorno", label:"Entorno organizacional" },
+      { key:"carga", label:"Carga de trabajo" },
+      { key:"control", label:"Falta de control" },
+      { key:"jornada", label:"Jornada y rotación" },
+    ],
+    currentEval: null,
+
+    // ───── KPIs computados
+    get kpis(){
+      const evals = this.evaluations;
+      const apto = evals.filter(e=>e.verdict==="APTO").length;
+      return {
+        workers: this.workers.length,
+        evaluations: evals.length,
+        aptRate: evals.length ? Math.round((apto/evals.length)*100) : 0,
+        accidents: this.accidents.length,
+      };
+    },
+
+    // ──────── init ────────
+    async init(){
+      // Verificar token y cargar sesión
+      const token = localStorage.getItem('ohp_token');
+      if (!token) { window.location.reload(); return; }
+      try {
+        this.user = await apiFetch('/auth/me');
+      } catch {
+        localStorage.removeItem('ohp_token');
+        window.location.reload();
+        return;
+      }
+
+      this.appReady = true;
+      this.resetEval();
+      this.recognition = makeRecognition();
+      if (!this.catalogs.companies.length) this.seedCatalogs();
+
+      // Cargar datos desde la API
+      await this.loadWorkers();
+
+      // Render gráficos cuando se entra a dashboard
+      this.$watch("route", (v) => {
+        if (v === "dashboard") this.$nextTick(()=>this.renderDashboardCharts());
+      });
+      this.$nextTick(()=>this.renderDashboardCharts());
+
+      // Dark mode preferencia
+      const savedDark = localStorage.getItem("ohp-dark");
+      if (savedDark === "1") { this.dark = true; document.documentElement.classList.add("dark"); }
+    },
+
+    // ──────── persistencia via API ────────
+    async loadWorkers(){
+      try {
+        this.workers = await apiFetch('/workers');
+      } catch(e){ console.warn("Error cargando trabajadores:", e); }
+    },
+    async loadEvals(workerId){
+      try {
+        this.evaluations = await apiFetch(`/workers/${workerId}/evaluations`);
+      } catch(e){ console.warn("Error cargando evaluaciones:", e); }
+    },
+    async loadAccidents(){
+      try {
+        this.accidents = await apiFetch('/accidents');
+      } catch(e){ console.warn("Error cargando accidentes:", e); }
+    },
+    logout(){
+      localStorage.removeItem('ohp_token');
+      window.location.reload();
+    },
+    exportBackup(){
+      const blob = new Blob([JSON.stringify({
+        workers:this.workers, evaluations:this.evaluations, accidents:this.accidents,
+        documents:this.documents, notes:this.notes, catalogs:this.catalogs, user:this.user,
+        exportedAt: new Date().toISOString(),
+      }, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `previta-ohp-backup-${dayjs().format("YYYYMMDD-HHmm")}.json`;
+      a.click(); URL.revokeObjectURL(url);
+      this.flash("Respaldo exportado.");
+    },
+    importBackup(ev){
+      const f = ev.target.files[0]; if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          const d = JSON.parse(r.result);
+          Object.assign(this, d);
+          this.save();
+          this.flash("Respaldo importado correctamente.");
+          this.$nextTick(()=>this.renderDashboardCharts());
+        } catch(e){ this.flash("Error al importar: archivo inválido."); }
+      };
+      r.readAsText(f);
+    },
+    confirmReset(){
+      this.modal = {
+        title: "Reiniciar todo",
+        body: "Esto borra trabajadores, evaluaciones, accidentes, documentos y notas. ¿Continuar?",
+        confirmText: "Sí, reiniciar",
+        onConfirm: () => {
+          this.workers = []; this.evaluations = []; this.accidents = [];
+          this.documents = []; this.notes = [];
+          this.save();
+          this.closeModal();
+          this.flash("Datos reiniciados.");
+        }
+      };
+    },
+    closeModal(){ this.modal = null; },
+
+    // ──────── ruteo ────────
+    go(r){ this.route = r; this.sidebarOpen=false; this.currentWorkerId = null; if (r==="workers") this.search=""; },
+    routeTitle(){
+      return { dashboard:"Dashboard", workers:"Trabajadores", worker:"Expediente",
+        "new-eval":"Nueva evaluación", accidents:"Accidentes", reports:"Reportes",
+        documents:"Documentos", catalogs:"Catálogos", rules:"Reglas", settings:"Preferencias" }[this.route] || "";
+    },
+
+    // ──────── dark mode ────────
+    toggleDark(){
+      this.dark = !this.dark;
+      document.documentElement.classList.toggle("dark", this.dark);
+      localStorage.setItem("ohp-dark", this.dark ? "1" : "0");
+      this.$nextTick(()=>this.renderDashboardCharts());
+    },
+
+    // ──────── helpers ────────
+    flash(msg){ this.toast = msg; setTimeout(()=>this.toast=null, 2500); },
+    workerName(id){ return this.workers.find(w=>w.id===id)?.fullName || "—"; },
+    companyOf(id){ return this.workers.find(w=>w.id===id)?.company || "—"; },
+    evalsOf(id){ return this.evaluations.filter(e=>e.workerId===id).slice().sort((a,b)=>new Date(b.date)-new Date(a.date)); },
+    lastEval(id){ return this.evalsOf(id)[0] || null; },
+    lastVerdict(id){ return this.lastEval(id)?.verdict || null; },
+    latestEvals(){ return this.evaluations.slice().sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,8); },
+    currentWorker(){ return this.workers.find(w=>w.id===this.currentWorkerId); },
+    notesOf(id){ return this.notes.filter(n=>n.workerId===id).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); },
+    documentsOf(id){ return this.documents.filter(d=>d.workerId===id).slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)); },
+    filteredWorkers(){
+      const q = (this.search||"").toLowerCase().trim();
+      if (!q) return this.workers;
+      return this.workers.filter(w => w.fullName.toLowerCase().includes(q) || (w.curp||"").toLowerCase().includes(q));
+    },
+    toggleArr(obj, key, val){
+      obj[key] = obj[key] || [];
+      const i = obj[key].indexOf(val);
+      if (i>=0) obj[key].splice(i,1); else obj[key].push(val);
+    },
+    computeAge(birthDate){
+      if (!birthDate) return null;
+      return dayjs().diff(dayjs(birthDate), "year");
+    },
+
+    verdictLabel(v){
+      return { APTO:"APTO", APTO_RESTRICCIONES:"APTO CON RESTRICCIONES",
+        NO_APTO_TEMPORAL:"NO APTO TEMPORAL", NO_APTO_DEFINITIVO:"NO APTO DEFINITIVO",
+        pending:"PENDIENTE" }[v] || (v||"—");
+    },
+    verdictChipClass(v){
+      return { APTO:"chip-leaf", APTO_RESTRICCIONES:"chip-amber",
+        NO_APTO_TEMPORAL:"chip-orange", NO_APTO_DEFINITIVO:"chip-rose",
+        pending:"chip-ink" }[v] || "chip-ink";
+    },
+    verdictBgClass(v){
+      return { APTO:"v-apto", APTO_RESTRICCIONES:"v-rest",
+        NO_APTO_TEMPORAL:"v-temp", NO_APTO_DEFINITIVO:"v-def" }[v] || "v-apto";
+    },
+    n35ChipClass(level){
+      return { "Nulo o despreciable":"chip-leaf", "Bajo":"chip-leaf",
+        "Medio":"chip-amber", "Alto":"chip-orange", "Muy alto":"chip-rose" }[level] || "chip-ink";
+    },
+    bmiClass(b){
+      if (!b) return "—";
+      if (b < 18.5) return "Bajo peso";
+      if (b < 25) return "Normal";
+      if (b < 30) return "Sobrepeso";
+      if (b < 35) return "Obesidad I";
+      if (b < 40) return "Obesidad II";
+      return "Obesidad III";
+    },
+    taClass(s,d){
+      if (!s||!d) return "—";
+      if (s>=180||d>=120) return "Crisis";
+      if (s>=160||d>=100) return "HAS grado 2";
+      if (s>=140||d>=90)  return "HAS grado 1";
+      if (s>=130||d>=85)  return "Limítrofe";
+      return "Normal";
+    },
+
+    // ──────── Trabajadores ────────
+    async openWorker(id){
+      this.currentWorkerId = id;
+      this.route = "worker";
+      await this.loadEvals(id);
+      this.$nextTick(()=>this.renderEvolution(id));
+    },
+    openNewWorker(){
+      this.workerForm = { id:null, fullName:"", curp:"", nss:"", rfc:"", birthDate:"", age:null,
+        sex:"Masculino", employeeNo:"", company:"", worksite:"", jobPosition:"",
+        risks:[], epp:[] };
+    },
+    editWorker(id){
+      const w = this.workers.find(x=>x.id===id);
+      this.workerForm = JSON.parse(JSON.stringify(w));
+    },
+    async saveWorker(){
+      const f = this.workerForm;
+      if (!f.fullName || !f.employeeNo){ this.flash("Nombre y número de empleado son requeridos."); return; }
+      f.age = this.computeAge(f.birthDate);
+      try {
+        if (f.id){
+          const updated = await apiFetch(`/workers/${f.id}`, { method:'PUT', body:{
+            name: f.fullName, date_birth: f.birthDate||null, gender: (f.sex||'').toLowerCase()||null,
+            department: f.company||null, position: f.jobPosition||null,
+            emergency_contact_name: f.emergencyName||null, emergency_contact_phone: f.emergencyPhone||null,
+          }});
+          const i = this.workers.findIndex(w=>w.id===f.id);
+          if (i>=0) this.workers[i] = { ...this.workers[i], ...f, ...updated };
+        } else {
+          const created = await apiFetch('/workers', { method:'POST', body:{
+            name: f.fullName, employee_id: f.employeeNo, date_birth: f.birthDate||null,
+            gender: (f.sex||'').toLowerCase()||null, department: f.company||null,
+            position: f.jobPosition||null,
+          }});
+          f.id = created.id;
+          f.createdAt = created.created_at;
+          this.workers.push({ ...f, ...created });
+        }
+        this.flash("Expediente guardado.");
+        this.workerForm = null;
+      } catch(e){ this.flash("Error: " + e.message); }
+    },
+
+    // ──────── Evaluación wizard ────────
+    resetEval(){
+      this.currentEval = {
+        id: uid("ENC"),
+        workerId: "",
+        type: "periodico",
+        date: new Date().toISOString(),
+        vitals: { sbp:null, dbp:null, hr:null, rr:null, temp:null, spo2:null, weight:null, height:null, bmi:null },
+        audio: { od:{}, oi:{}, ptaOd:null, ptaOi:null, klockhoff:null, highFreq:null },
+        spiro: { fvcPct:null, fev1Pct:null, ratio:null, gold:null },
+        ecg:   { hr:null, severity:"none", findings:"" },
+        labs:  { glucose:null, hba1c:null, cholesterol:null, ldl:null, creatinine:null, toxPositive:false },
+        nom035:{ responses:{ ambiente:0, actividad:0, tiempo:0, liderazgo:0, entorno:0, carga:0, control:0, jornada:0 }, score:0, level:"Nulo o despreciable" },
+        notes: "",
+        signature: { mode:"PKCS7_LOCAL", doctorName: this.user?.name, doctorLicense: this.user?.license },
+        engine: { verdict:"APTO", confidence:0.95, firedRules:[], restrictions:[] },
+      };
+      this.evalStep = 1;
+    },
+    startEval(workerId){
+      this.resetEval();
+      this.currentEval.workerId = workerId;
+      this.onWorkerChosen();
+      this.route = "new-eval";
+    },
+    onWorkerChosen(){ this.recomputeVerdict(); },
+    evalNext(){
+      if (this.evalStep===1 && !this.currentEval.workerId){ this.flash("Selecciona un trabajador."); return; }
+      if (this.evalStep < 7) this.evalStep++;
+    },
+    computeBMI(){
+      const v = this.currentEval.vitals;
+      if (v.weight && v.height && v.height>0){
+        v.bmi = Number((v.weight / (v.height*v.height)).toFixed(1));
+      } else { v.bmi = null; }
+    },
+    computeMAP(){
+      const v = this.currentEval.vitals;
+      if (v.sbp && v.dbp) return Math.round((v.sbp + 2*v.dbp)/3);
+      return "—";
+    },
+    recomputeAudio(){
+      const a = this.currentEval.audio;
+      const ptaCalc = (side) => {
+        const v = [a[side][500], a[side][1000], a[side][2000]].filter(x=>typeof x==="number");
+        if (v.length<3) return null;
+        return Math.round(v.reduce((s,x)=>s+x,0)/v.length);
+      };
+      const hfCalc = (side) => {
+        const v = [a[side][4000], a[side][6000], a[side][8000]].filter(x=>typeof x==="number");
+        if (!v.length) return null;
+        return Math.round(v.reduce((s,x)=>s+x,0)/v.length);
+      };
+      a.ptaOd = ptaCalc("od");
+      a.ptaOi = ptaCalc("oi");
+      const hfOd = hfCalc("od"); const hfOi = hfCalc("oi");
+      a.highFreq = (hfOd!=null && hfOi!=null) ? Math.max(hfOd, hfOi) : (hfOd ?? hfOi ?? null);
+      // Klockhoff (basado en frecuencias altas, NOM-011)
+      const peak = a.highFreq;
+      if (peak==null){ a.klockhoff=null; return; }
+      if (peak < 25) a.klockhoff = "I";
+      else if (peak < 35) a.klockhoff = "II";
+      else if (peak < 55) a.klockhoff = "II-III";
+      else if (peak < 75) a.klockhoff = "IV";
+      else a.klockhoff = "V";
+    },
+    recomputeSpiro(){
+      const s = this.currentEval.spiro;
+      if (!s.fev1Pct){ s.gold=null; return; }
+      const ratio = s.ratio || (s.fvcPct ? (s.fev1Pct/s.fvcPct) : null);
+      const hasObstruction = ratio && ratio < 0.7;
+      if (!hasObstruction){ s.gold = "0"; return; }
+      if (s.fev1Pct >= 80) s.gold = "I";
+      else if (s.fev1Pct >= 50) s.gold = "II";
+      else if (s.fev1Pct >= 30) s.gold = "III";
+      else s.gold = "IV";
+    },
+    recomputeNom035(){
+      const r = this.currentEval.nom035.responses;
+      const score = Object.values(r).reduce((s,v)=>s+v,0);
+      this.currentEval.nom035.score = score;
+      this.currentEval.nom035.level = n35Level(score * 1.5); // re-escala 0-80 a 0-120 aprox
+    },
+
+    recomputeVerdict(){
+      const w = this.workers.find(x=>x.id===this.currentEval.workerId);
+      const input = {
+        worker: w,
+        vitals: this.currentEval.vitals,
+        audio: this.currentEval.audio,
+        spiro: this.currentEval.spiro,
+        ecg: this.currentEval.ecg,
+        labs: this.currentEval.labs,
+        nom035: this.currentEval.nom035,
+      };
+      this.currentEval.engine = runEngine(input);
+    },
+
+    async finalizeEvaluation(){
+      if (!this.currentEval.workerId){ this.flash("Selecciona un trabajador antes de firmar."); return; }
+      const e = JSON.parse(JSON.stringify(this.currentEval));
+      e.verdict = e.engine.verdict;
+      e.confidence = e.engine.confidence;
+      e.signedAt = new Date().toISOString();
+      try {
+        const saved = await apiFetch(`/workers/${e.workerId}/evaluations`, { method:'POST', body:{
+          type: e.type || 'periodico',
+          date: dayjs(e.date).format('YYYY-MM-DD'),
+          weight: e.vitals?.weight || null,
+          height: e.vitals?.height ? e.vitals.height * 100 : null,
+          blood_pressure_sys: e.vitals?.sbp || null,
+          blood_pressure_dia: e.vitals?.dbp || null,
+          heart_rate: e.vitals?.hr || null,
+          glucose: e.labs?.glucose || null,
+          audiometry_right: e.audio?.ptaOd || null,
+          audiometry_left: e.audio?.ptaOi || null,
+          spirometry_fvc: e.spiro?.fvcPct || null,
+          spirometry_fev1: e.spiro?.fev1Pct || null,
+          diagnosis: e.engine?.firedRules?.join(', ') || null,
+          restrictions: e.engine?.restrictions?.join(', ') || null,
+          fitness_status: { APTO:'apto', APTO_RESTRICCIONES:'apto_con_restricciones',
+            NO_APTO_TEMPORAL:'no_apto', NO_APTO_DEFINITIVO:'no_apto' }[e.verdict] || 'apto',
+          notes: e.notes || null,
+        }});
+        this.evaluations.push({ ...e, ...saved });
+        this.flash("Evaluación guardada y emitida.");
+        await this.emitPdf("apto", e.id);
+        this.currentWorkerId = e.workerId;
+        this.route = "worker";
+        this.resetEval();
+      } catch(err){ this.flash("Error al guardar evaluación: " + err.message); }
+    },
+
+    // ──────── Catálogos ────────
+    seedCatalogs(){
+      this.catalogs.companies = [
+        { id: uid("CMP"), name:"Minera del Pacífico SA de CV", rfc:"MPA050314XY1" },
+        { id: uid("CMP"), name:"Constructora Norte SA", rfc:"CNS010220AB1" },
+        { id: uid("CMP"), name:"Petroquímica del Golfo SA", rfc:"PGO980808CD2" },
+      ];
+      this.catalogs.positions = [
+        "Operador de molino", "Operador de maquinaria", "Soldador", "Electricista",
+        "Auxiliar de almacén", "Supervisor de producción", "Personal administrativo",
+        "Conductor profesional", "Trabajador de alturas", "Operador de planta",
+      ];
+      this.catalogs.risks = [
+        "Ruido continuo > 85 dB", "Polvo respirable", "Vibración mano-brazo",
+        "Trabajo en alturas", "Espacios confinados", "Exposición a solventes",
+        "Calor extremo", "Iluminación deficiente", "Estrés psicosocial",
+        "Cargas pesadas (manejo manual)", "Radiación ionizante",
+      ];
+      this.catalogs.epps = [
+        "Tapones auditivos", "Orejera doble", "Respirador N95",
+        "Lentes de seguridad", "Casco de seguridad", "Guantes anti-corte",
+        "Arnés de cuerpo entero", "Botas dieléctricas", "Calzado antiderrapante",
+        "Mascarilla con cartuchos para vapores", "Faja lumbar",
+      ];
+    },
+    addCompany(){
+      if (!this.catalogForm.companyName) return;
+      this.catalogs.companies.push({ id: uid("CMP"), name: this.catalogForm.companyName, rfc: this.catalogForm.companyRfc });
+      this.catalogForm.companyName = ""; this.catalogForm.companyRfc = "";
+    },
+    removeCompany(id){ this.catalogs.companies = this.catalogs.companies.filter(c=>c.id!==id); },
+    addRisk(){ const v=this.catalogForm.riskName.trim(); if (v && !this.catalogs.risks.includes(v)){ this.catalogs.risks.push(v); this.catalogForm.riskName=""; } },
+    removeRisk(r){ this.catalogs.risks = this.catalogs.risks.filter(x=>x!==r); },
+    addEpp(){ const v=this.catalogForm.eppName.trim(); if (v && !this.catalogs.epps.includes(v)){ this.catalogs.epps.push(v); this.catalogForm.eppName=""; } },
+    removeEpp(e){ this.catalogs.epps = this.catalogs.epps.filter(x=>x!==e); },
+    addPosition(){ const v=this.catalogForm.positionName.trim(); if (v && !this.catalogs.positions.includes(v)){ this.catalogs.positions.push(v); this.catalogForm.positionName=""; } },
+    removePosition(p){ this.catalogs.positions = this.catalogs.positions.filter(x=>x!==p); },
+
+    // ──────── Accidentes ────────
+    newAccident(){
+      this.editingAccident = { id: uid("ACC"), workerId:"", datetime: dayjs().format("YYYY-MM-DDTHH:mm"),
+        location:"", onDuty:"Sí", commute:"No", witnesses:"", mechanism:"", bodyRegion:"",
+        injuryType:"", icd10:"", estimatedDays:0, treatment:"", calification:"Probable accidente de trabajo." };
+    },
+    async saveAccident(){
+      if (!this.editingAccident.workerId){ this.flash("Selecciona un trabajador."); return; }
+      const a = this.editingAccident;
+      try {
+        const saved = await apiFetch('/accidents', { method:'POST', body:{
+          worker_id: a.workerId,
+          date: dayjs(a.datetime).format('YYYY-MM-DD'),
+          type: 'otro',
+          description: [a.mechanism, a.location].filter(Boolean).join(' — ') || null,
+          body_part: a.bodyRegion || null,
+          days_lost: parseInt(a.estimatedDays) || 0,
+          severity: 'leve',
+          investigation_notes: a.calification || null,
+        }});
+        this.accidents.push({ ...a, ...saved });
+        this.editingAccident = null;
+        this.emitPdf("st7", saved.id);
+        this.flash("Accidente registrado y ST-7 emitido.");
+      } catch(err){ this.flash("Error al guardar: " + err.message); }
+    },
+
+    // ──────── Notas / Dictado ────────
+    toggleDictation(targetId){
+      if (!this.recognition){ this.flash("Tu navegador no soporta dictado. Usa Chrome o Edge."); return; }
+      if (this.dictating){
+        try { this.recognition.stop(); } catch(_) {}
+        this.dictating = false; this.dictationTarget = null;
+        return;
+      }
+      this.dictationTarget = targetId;
+      this.recognition.onresult = (ev) => {
+        let text = "";
+        for (let i=ev.resultIndex; i<ev.results.length; i++){
+          if (ev.results[i].isFinal) text += ev.results[i][0].transcript + " ";
+        }
+        if (!text) return;
+        if (targetId === "eval-notes"){
+          this.currentEval.notes = (this.currentEval.notes || "") + text;
+        } else {
+          this.noteDraft = (this.noteDraft || "") + text;
+        }
+      };
+      this.recognition.onend = () => { this.dictating = false; };
+      this.recognition.onerror = (e) => { this.dictating=false; this.flash("Error de dictado: " + e.error); };
+      try { this.recognition.start(); this.dictating = true; this.flash("Dictando en español…"); }
+      catch(_) { this.flash("No se pudo iniciar el dictado."); }
+    },
+    addNote(workerId){
+      const text = (this.noteDraft || "").trim();
+      if (!text) return;
+      this.notes.push({ id: uid("NOTE"), workerId, text, author: this.user.name, createdAt: new Date().toISOString() });
+      this.noteDraft = "";
+      this.flash("Nota guardada.");
+    },
+
+    // ──────── Charts: dashboard ────────
+    _charts: {},
+    renderDashboardCharts(){
+      if (this.route !== "dashboard") return;
+      // Color helpers según modo
+      const labelColor = this.dark ? "#9FB0B8" : "#6B7A82";
+      // monthly
+      const monthlyCounts = {};
+      for (let i=11;i>=0;i--){
+        const m = dayjs().subtract(i,"month").format("YYYY-MM");
+        monthlyCounts[m] = 0;
+      }
+      this.evaluations.forEach(e => {
+        const m = dayjs(e.date).format("YYYY-MM");
+        if (m in monthlyCounts) monthlyCounts[m]++;
+      });
+      const monthlyLabels = Object.keys(monthlyCounts);
+      const monthlyData = Object.values(monthlyCounts);
+
+      const ctxM = document.getElementById("chartMonthly");
+      if (ctxM){
+        if (this._charts.monthly) this._charts.monthly.destroy();
+        this._charts.monthly = new Chart(ctxM, {
+          type: "bar",
+          data: { labels: monthlyLabels, datasets: [{
+            label: "Evaluaciones", data: monthlyData,
+            backgroundColor: "#0FB5A6", borderRadius: 4,
+          }]},
+          options: {
+            maintainAspectRatio: false, responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: labelColor }, grid: { display: false } },
+              y: { ticks: { color: labelColor }, beginAtZero: true, grid: { color: "#E8ECEE33" } },
+            },
+          }
+        });
+      }
+
+      // verdicts donut
+      const counts = { APTO:0, APTO_RESTRICCIONES:0, NO_APTO_TEMPORAL:0, NO_APTO_DEFINITIVO:0 };
+      this.evaluations.forEach(e => { if (counts[e.verdict]!=null) counts[e.verdict]++; });
+      const ctxV = document.getElementById("chartVerdicts");
+      if (ctxV){
+        if (this._charts.verdicts) this._charts.verdicts.destroy();
+        this._charts.verdicts = new Chart(ctxV, {
+          type: "doughnut",
+          data: { labels:["APTO","Restricciones","No apto temp.","No apto def."],
+            datasets:[{ data: Object.values(counts),
+              backgroundColor:["#1E8449","#D68910","#E67E22","#C0392B"], borderWidth:0 }]},
+          options: { maintainAspectRatio: false, responsive: true,
+            plugins: { legend: { position: "bottom", labels: { color: labelColor, font:{size:11}, boxWidth:10 } } },
+            cutout: "62%",
+          }
+        });
+      }
+    },
+
+    // ──────── Charts: evolución del expediente
+    renderEvolution(workerId){
+      const evs = this.evalsOf(workerId).slice().reverse();
+      const labelColor = this.dark ? "#9FB0B8" : "#6B7A82";
+      const ctx = document.getElementById("chartEvolution");
+      if (!ctx) return;
+      if (this._charts.evolution) this._charts.evolution.destroy();
+      const labels = evs.map(e => dayjs(e.date).format("MM/YY"));
+      const series = (sel) => evs.map(e => { try { return sel(e) ?? null; } catch { return null; } });
+      this._charts.evolution = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label:"TA sistólica", data: series(e=>e.vitals?.sbp), borderColor:"#C0392B", backgroundColor:"#C0392B22", tension:.35, fill:false },
+            { label:"IMC", data: series(e=>e.vitals?.bmi), borderColor:"#0FB5A6", backgroundColor:"#0FB5A622", tension:.35, fill:false },
+            { label:"PTA OI", data: series(e=>e.audio?.ptaOi), borderColor:"#D68910", backgroundColor:"#D6891022", tension:.35, fill:false },
+            { label:"FEV1 %", data: series(e=>e.spiro?.fev1Pct), borderColor:"#1E8449", backgroundColor:"#1E844922", tension:.35, fill:false },
+            { label:"Glucemia", data: series(e=>e.labs?.glucose), borderColor:"#E67E22", backgroundColor:"#E67E2222", tension:.35, fill:false },
+            { label:"NOM-035 score", data: series(e=>e.nom035?.score), borderColor:"#6B7A82", backgroundColor:"#6B7A8222", tension:.35, fill:false, borderDash:[4,4] },
+          ]
+        },
+        options: {
+          maintainAspectRatio: false, responsive: true, spanGaps: true,
+          plugins:{ legend:{ position:"bottom", labels:{ color:labelColor, font:{size:11}, boxWidth:10 } } },
+          scales:{
+            x:{ ticks:{ color: labelColor }, grid:{ display:false } },
+            y:{ ticks:{ color: labelColor }, grid:{ color:"#E8ECEE33" } },
+          }
+        }
+      });
+
+      // spark cards
+      this.$nextTick(()=>{
+        const cards = this.evolutionCards(workerId);
+        cards.forEach(c => {
+          const el = document.getElementById("spark-"+c.key);
+          if (!el) return;
+          if (this._charts["spark-"+c.key]) this._charts["spark-"+c.key].destroy();
+          this._charts["spark-"+c.key] = new Chart(el, {
+            type:"line",
+            data:{ labels: c.values.map((_,i)=>i+1), datasets:[{ data: c.values, borderColor:c.color, backgroundColor:c.color+"22", tension:.4, pointRadius:0, fill:true }]},
+            options:{ maintainAspectRatio:false, responsive:true, plugins:{legend:{display:false}, tooltip:{enabled:false}}, scales:{x:{display:false}, y:{display:false}} }
+          });
+        });
+      });
+    },
+    evolutionCards(workerId){
+      const evs = this.evalsOf(workerId).slice().reverse();
+      const grab = (sel) => evs.map(e=>{ try { const v=sel(e); return (typeof v==="number")? v : null; } catch{ return null; } }).filter(v=>v!=null);
+      const lastTrend = (vals) => {
+        if (vals.length < 2) return { trend:"·", trendClass:"chip-ink" };
+        const a = vals[vals.length-2], b = vals[vals.length-1];
+        if (b > a) return { trend:"↑", trendClass:"chip-rose" };
+        if (b < a) return { trend:"↓", trendClass:"chip-leaf" };
+        return { trend:"=", trendClass:"chip-ink" };
+      };
+      const cards = [
+        { key:"ta",      label:"TA sistólica", unit:"mmHg", loinc:"8480-6", color:"#C0392B", values: grab(e=>e.vitals?.sbp) },
+        { key:"imc",     label:"IMC",          unit:"kg/m²", loinc:"39156-5", color:"#0FB5A6", values: grab(e=>e.vitals?.bmi) },
+        { key:"pta",     label:"PTA OI",       unit:"dB",   loinc:"79944-5", color:"#D68910", values: grab(e=>e.audio?.ptaOi) },
+        { key:"fev1",    label:"FEV1 %",       unit:"%",    loinc:"20157-9", color:"#1E8449", values: grab(e=>e.spiro?.fev1Pct) },
+        { key:"glucose", label:"Glucemia",     unit:"mg/dL",loinc:"2345-7",  color:"#E67E22", values: grab(e=>e.labs?.glucose) },
+        { key:"nom035",  label:"NOM-035",      unit:"pts",  loinc:"PRV-N35", color:"#6B7A82", values: grab(e=>e.nom035?.score) },
+      ];
+      return cards.map(c => {
+        const last = c.values.length ? c.values[c.values.length-1] : "—";
+        return { ...c, last, ...lastTrend(c.values) };
+      });
+    },
+
+    // ──────── Demo data ────────
+    async seedDemo(){
+      if (this.workers.length){ if (!confirm("Ya hay datos. ¿Agregar trabajadores demo igualmente?")) return; }
+      const demo = [
+        { fullName:"Jorge Alberto Ramírez Méndez", curp:"RAMJ820415HDFRNR04", nss:"12345678901", rfc:"RAMJ820415AB7",
+          birthDate:"1982-04-15", sex:"Masculino", employeeNo:"MP-04812",
+          company:"Minera del Pacífico SA de CV", worksite:"Planta Concentradora 2 · Hermosillo",
+          jobPosition:"Operador de molino",
+          risks:["Ruido continuo > 85 dB","Polvo respirable","Vibración mano-brazo","Trabajo en alturas"],
+          epp:["Tapones auditivos","Orejera doble","Respirador N95","Lentes de seguridad","Arnés de cuerpo entero"] },
+        { fullName:"María Esperanza Vázquez Trejo", curp:"VATM910822MDFZRP05", nss:"11223344556", rfc:"VATM910822CD3",
+          birthDate:"1991-08-22", sex:"Femenino", employeeNo:"PG-02314",
+          company:"Petroquímica del Golfo SA", worksite:"Refinería Tampico", jobPosition:"Supervisor de producción",
+          risks:["Exposición a solventes","Calor extremo","Estrés psicosocial"],
+          epp:["Mascarilla con cartuchos para vapores","Lentes de seguridad","Casco de seguridad"] },
+        { fullName:"Luis Hernán Pacheco Solís", curp:"PASL750102HDFRLS09", nss:"99887766554", rfc:"PASL750102EF4",
+          birthDate:"1975-01-02", sex:"Masculino", employeeNo:"CN-01102",
+          company:"Constructora Norte SA", worksite:"Obra Torre Reforma 2", jobPosition:"Trabajador de alturas",
+          risks:["Trabajo en alturas","Cargas pesadas (manejo manual)"],
+          epp:["Arnés de cuerpo entero","Casco de seguridad","Calzado antiderrapante","Faja lumbar"] },
+      ];
+      demo.forEach(w => {
+        w.id = uid("WRK"); w.age = this.computeAge(w.birthDate); w.createdAt = new Date().toISOString();
+        this.workers.push(w);
+      });
+
+      // 4 evaluaciones para Jorge (progresivas)
+      const jorge = this.workers[this.workers.length-3];
+      const ev1Date = dayjs().subtract(36,"month").toISOString();
+      const ev2Date = dayjs().subtract(24,"month").toISOString();
+      const ev3Date = dayjs().subtract(12,"month").toISOString();
+      const ev4Date = dayjs().toISOString();
+      const buildEval = (date, vitals, audio, spiro, labs, nom035Resp) => {
+        const e = {
+          id: uid("ENC"), workerId: jorge.id, type:"periodico", date,
+          vitals: { ...vitals }, audio: { ...audio }, spiro: { ...spiro },
+          ecg:{ severity:"none", findings:"Ritmo sinusal, sin alteraciones agudas." },
+          labs: { ...labs },
+          nom035: { responses: nom035Resp, score: Object.values(nom035Resp).reduce((s,v)=>s+v,0) },
+          notes: "Trabajador asintomático. Continúa programa de vigilancia auditiva.",
+          signature: { mode:"PKCS7_LOCAL", doctorName:this.user.name, doctorLicense:this.user?.email },
+          signedAt: date,
+        };
+        e.nom035.level = n35Level(e.nom035.score * 1.5);
+        const input = { worker:jorge, vitals:e.vitals, audio:e.audio, spiro:e.spiro, ecg:e.ecg, labs:e.labs, nom035:e.nom035 };
+        const r = runEngine(input);
+        e.engine = r; e.verdict = r.verdict; e.confidence = r.confidence;
+        return e;
+      };
+      this.evaluations.push(buildEval(ev1Date,
+        { sbp:128, dbp:82, hr:74, rr:16, temp:36.5, spo2:97, weight:84, height:1.74, bmi:27.7 },
+        { ptaOd:18, ptaOi:22, klockhoff:"I", highFreq:22 },
+        { fvcPct:95, fev1Pct:92, ratio:0.85, gold:"0" },
+        { glucose:92, hba1c:5.4, cholesterol:190, ldl:120, creatinine:0.9, toxPositive:false },
+        { ambiente:3, actividad:5, tiempo:5, liderazgo:3, entorno:4, carga:6, control:4, jornada:4 }));
+      this.evaluations.push(buildEval(ev2Date,
+        { sbp:135, dbp:85, hr:76, rr:16, temp:36.6, spo2:97, weight:88, height:1.74, bmi:29.1 },
+        { ptaOd:22, ptaOi:30, klockhoff:"II", highFreq:32 },
+        { fvcPct:92, fev1Pct:88, ratio:0.82, gold:"0" },
+        { glucose:104, hba1c:5.8, cholesterol:205, ldl:130, creatinine:0.9, toxPositive:false },
+        { ambiente:4, actividad:6, tiempo:7, liderazgo:4, entorno:5, carga:8, control:5, jornada:5 }));
+      this.evaluations.push(buildEval(ev3Date,
+        { sbp:140, dbp:86, hr:78, rr:16, temp:36.6, spo2:96, weight:90, height:1.74, bmi:29.7 },
+        { ptaOd:25, ptaOi:36, klockhoff:"II-III", highFreq:38 },
+        { fvcPct:90, fev1Pct:84, ratio:0.80, gold:"0" },
+        { glucose:112, hba1c:6.0, cholesterol:210, ldl:135, creatinine:0.91, toxPositive:false },
+        { ambiente:4, actividad:7, tiempo:8, liderazgo:5, entorno:5, carga:10, control:6, jornada:6 }));
+      this.evaluations.push(buildEval(ev4Date,
+        { sbp:142, dbp:88, hr:78, rr:16, temp:36.6, spo2:96, weight:92, height:1.74, bmi:30.4 },
+        { ptaOd:28, ptaOi:42, klockhoff:"II-III", highFreq:44 },
+        { fvcPct:88, fev1Pct:82, ratio:0.79, gold:"0" },
+        { glucose:118, hba1c:6.1, cholesterol:215, ldl:138, creatinine:0.92, toxPositive:false },
+        { ambiente:4, actividad:8, tiempo:9, liderazgo:5, entorno:6, carga:12, control:7, jornada:7 }));
+
+      // 1 evaluación para María
+      const maria = this.workers[this.workers.length-2];
+      const eM = buildEval.call(this, dayjs().subtract(3,"month").toISOString(),
+        { sbp:118, dbp:78, hr:72, rr:14, temp:36.4, spo2:98, weight:62, height:1.62, bmi:23.6 },
+        { ptaOd:10, ptaOi:12, klockhoff:"I", highFreq:14 },
+        { fvcPct:96, fev1Pct:94, ratio:0.86, gold:"0" },
+        { glucose:88, hba1c:5.2, cholesterol:180, ldl:108, creatinine:0.8, toxPositive:false },
+        { ambiente:3, actividad:5, tiempo:5, liderazgo:3, entorno:4, carga:5, control:3, jornada:4 });
+      eM.workerId = maria.id;
+      this.evaluations.push(eM);
+
+      // 1 accidente
+      this.accidents.push({
+        id: uid("ACC"), workerId: jorge.id,
+        datetime: dayjs().subtract(40,"day").format("YYYY-MM-DDTHH:mm"),
+        location:"Planta Concentradora 2 · Banda B-04",
+        onDuty:"Sí", commute:"No", witnesses:"Luis Hernández, María García",
+        mechanism:"Resbaló sobre derrame de aceite durante mantenimiento programado, cayendo sobre el costado izquierdo.",
+        bodyRegion:"Hombro y codo izquierdos", injuryType:"Contusión + esguince grado II",
+        icd10:"S43.4", estimatedDays:14,
+        treatment:"Inmovilización con cabestrillo, AINE, criocompresas.",
+        calification:"Accidente de trabajo (Art. 474 LFT). Causas concurrentes: piso resbaladizo + EPP insuficiente.",
+      });
+
+      this.flash("Demo cargada: 3 trabajadores, 5 evaluaciones, 1 accidente.");
+      this.$nextTick(()=>this.renderDashboardCharts());
+    },
+
+    // ──────── PDF emission ────────
+    async emitPdf(kind, refId){
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit:"pt", format:"a4" });
+      const W = doc.internal.pageSize.getWidth();
+      const H = doc.internal.pageSize.getHeight();
+      const M = 40;
+
+      // Datos según tipo
+      let title, formatCode, nomRef, workerId = null, body;
+      if (kind === "apto" || kind === "historia"){
+        const e = this.evaluations.find(x => x.id === refId);
+        if (!e){ this.flash("Evaluación no encontrada."); return; }
+        const w = this.workers.find(x => x.id === e.workerId);
+        workerId = w.id;
+        if (kind === "apto"){
+          title = "Dictamen médico de aptitud laboral";
+          formatCode = "OHP-APT-01"; nomRef = "NOM-004-SSA3-2012";
+        } else {
+          title = "Historia clínica laboral";
+          formatCode = "OHP-HCL-01"; nomRef = "NOM-004-SSA3-2012";
+        }
+        body = this._buildAptoBody(doc, kind, e, w, M, W);
+      } else if (kind === "st7"){
+        const a = this.accidents.find(x => x.id === refId);
+        if (!a){ this.flash("Accidente no encontrado."); return; }
+        const w = this.workers.find(x => x.id === a.workerId);
+        workerId = w.id;
+        title = "ST-7 · Aviso de atención médica y calificación de probable accidente de trabajo";
+        formatCode = "STPS-ST7"; nomRef = "LFT Art. 504-V";
+        body = this._buildST7Body(doc, a, w, M, W);
+      } else if (kind === "st2"){
+        const a = this.accidents.find(x => x.id === refId);
+        if (!a){ this.flash("Accidente no encontrado."); return; }
+        const w = this.workers.find(x => x.id === a.workerId);
+        workerId = w.id;
+        title = "ST-2 · Dictamen de probable incapacidad permanente";
+        formatCode = "STPS-ST2"; nomRef = "Ley del Seguro Social";
+        body = this._buildST2Body(doc, a, w, M, W);
+      } else if (kind === "nom035"){
+        const e = this.evaluations.find(x => x.id === refId);
+        if (!e){ this.flash("Evaluación no encontrada."); return; }
+        const w = this.workers.find(x => x.id === e.workerId);
+        workerId = w.id;
+        title = "NOM-035-STPS-2018 · Guía III · Riesgo psicosocial";
+        formatCode = "OHP-N35-III"; nomRef = "NOM-035-STPS-2018";
+        body = this._buildNom035Body(doc, e, w, M, W);
+      } else if (kind === "reporte"){
+        title = "Reporte ejecutivo de salud ocupacional";
+        formatCode = "OHP-EXE-01"; nomRef = "NOM-030-STPS-2009";
+        body = this._buildReporteBody(doc, M, W);
+      } else {
+        this.flash("Tipo de documento desconocido."); return;
+      }
+
+      const docId = kind.toUpperCase()+"-"+uid("").slice(2);
+      this._drawHeader(doc, title, formatCode, nomRef, docId, "PREVITA OHP");
+      body();
+      this._drawFooter(doc);
+
+      // Calcular SHA-256 sobre buffer
+      const arr = doc.output("arraybuffer");
+      const hex = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", arr))).map(b=>b.toString(16).padStart(2,"0")).join("");
+
+      // Guardar referencia
+      const blob = doc.output("blob");
+      const url = URL.createObjectURL(blob);
+      const filename = `${docId}.pdf`;
+      const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+
+      this.documents.push({
+        id: docId, kind, refId, workerId,
+        title: title.split("·")[0].trim(),
+        sha256: hex, createdAt: new Date().toISOString(),
+        signedBy: this.user.name, signedLicense: this.user?.email,
+      });
+      this.flash("PDF emitido y archivado: "+docId);
+    },
+
+    redownload(d){
+      // Re-emite usando los datos vivos
+      this.emitPdf(d.kind, d.refId);
+    },
+
+    // ──────── PDF builders ────────
+    _drawHeader(doc, title, formatCode, nomRef, docId, tenant){
+      const W = doc.internal.pageSize.getWidth();
+      doc.setFillColor(11,31,37);
+      doc.rect(0, 0, W, 70, "F");
+      doc.setFillColor(15,181,166);
+      doc.rect(0, 70, W, 4, "F");
+      doc.setTextColor(255,255,255);
+      doc.setFont("helvetica","bold"); doc.setFontSize(16);
+      doc.text("PREVITA", 40, 32);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8);
+      doc.setTextColor(207,241,237);
+      doc.text("Occupational Health Platform · eHealthTracker", 40, 46);
+
+      doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(10);
+      doc.text(title, W-40, 28, { align:"right", maxWidth: 320 });
+      doc.setFont("helvetica","normal"); doc.setFontSize(8);
+      doc.setTextColor(207,241,237);
+      doc.text(`Formato ${formatCode} · ${nomRef}`, W-40, 44, { align:"right" });
+      doc.text(`ID documento: ${docId}`, W-40, 58, { align:"right" });
+
+      doc.setTextColor(43,62,69);
+      this._cursorY = 100;
+      doc._tenantName = tenant;
+    },
+    _drawFooter(doc){
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i=1; i<=pageCount; i++){
+        doc.setPage(i);
+        const W = doc.internal.pageSize.getWidth();
+        const H = doc.internal.pageSize.getHeight();
+        doc.setDrawColor(232,236,238); doc.setLineWidth(.4);
+        doc.line(40, H-32, W-40, H-32);
+        doc.setFont("helvetica","normal"); doc.setFontSize(7);
+        doc.setTextColor(107,122,130);
+        doc.text(doc._tenantName || "PREVITA", 40, H-20);
+        doc.text("Confidencial · LFPDPPP · NOM-024-SSA3-2012", W/2, H-20, { align:"center" });
+        doc.text(`Página ${i} de ${pageCount}`, W-40, H-20, { align:"right" });
+      }
+    },
+    _section(doc, txt){
+      this._cursorY += 12;
+      doc.setFont("helvetica","bold"); doc.setFontSize(11);
+      doc.setTextColor(10,138,127);
+      doc.text(txt, 40, this._cursorY);
+      this._cursorY += 6;
+      doc.setDrawColor(15,181,166); doc.setLineWidth(.8);
+      doc.line(40, this._cursorY, 70, this._cursorY);
+      this._cursorY += 8;
+      doc.setTextColor(43,62,69);
+    },
+    _verdictBanner(doc, verdict, confidence){
+      const colors = { APTO:[30,132,73], APTO_RESTRICCIONES:[214,137,16],
+        NO_APTO_TEMPORAL:[230,126,34], NO_APTO_DEFINITIVO:[192,57,43] };
+      const labels = { APTO:"APTO", APTO_RESTRICCIONES:"APTO CON RESTRICCIONES",
+        NO_APTO_TEMPORAL:"NO APTO TEMPORAL", NO_APTO_DEFINITIVO:"NO APTO DEFINITIVO" };
+      const c = colors[verdict] || [11,31,37];
+      const W = doc.internal.pageSize.getWidth();
+      doc.setFillColor(...c);
+      doc.roundedRect(40, this._cursorY, W-80, 50, 8, 8, "F");
+      doc.setTextColor(255,255,255);
+      doc.setFont("helvetica","bold"); doc.setFontSize(14);
+      doc.text("DICTAMEN MÉDICO LABORAL · " + (labels[verdict] || verdict), W/2, this._cursorY+22, { align:"center" });
+      doc.setFont("helvetica","normal"); doc.setFontSize(9);
+      doc.text(`Confianza del motor: ${Math.round((confidence||0)*100)}%`, W/2, this._cursorY+38, { align:"center" });
+      this._cursorY += 60;
+      doc.setTextColor(43,62,69);
+    },
+    _kvTable(doc, rows){
+      doc.autoTable({
+        startY: this._cursorY,
+        body: rows.map(([k,v]) => [{content:k,styles:{fontStyle:"bold",textColor:[107,122,130],fontSize:8}}, {content:String(v??"—"),styles:{fontSize:9,textColor:[43,62,69]}}]),
+        theme: "plain",
+        styles: { fontSize: 9, cellPadding: 3 },
+        columnStyles: { 0:{cellWidth:170}, 1:{cellWidth:"auto"} },
+        margin: { left: 40, right: 40 },
+        didDrawCell: (data) => {
+          if (data.section === "body" && data.column.index === 1){
+            doc.setDrawColor(232,236,238); doc.setLineWidth(.3);
+            doc.line(data.cell.x, data.cell.y + data.cell.height,
+                     data.cell.x + data.cell.width, data.cell.y + data.cell.height);
+          }
+        }
+      });
+      this._cursorY = doc.lastAutoTable.finalY + 8;
+    },
+    _para(doc, text, opts={}){
+      doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(43,62,69);
+      const W = doc.internal.pageSize.getWidth();
+      const lines = doc.splitTextToSize(text, W-80);
+      this._maybePageBreak(doc, lines.length*11);
+      doc.text(lines, 40, this._cursorY);
+      this._cursorY += lines.length*11 + 4;
+    },
+    _maybePageBreak(doc, needed){
+      const H = doc.internal.pageSize.getHeight();
+      if (this._cursorY + needed > H - 60){ doc.addPage(); this._cursorY = 100; }
+    },
+    _signature(doc, signerName, signerLicense, mode, hash){
+      this._maybePageBreak(doc, 90);
+      const W = doc.internal.pageSize.getWidth();
+      this._cursorY += 14;
+      doc.setDrawColor(43,62,69); doc.setLineWidth(.4);
+      doc.line(60, this._cursorY+34, W/2-20, this._cursorY+34);
+      doc.line(W/2+20, this._cursorY+34, W-60, this._cursorY+34);
+      doc.setFont("helvetica","bold"); doc.setFontSize(9);
+      doc.text(signerName, (60+W/2-20)/2, this._cursorY+46, { align:"center" });
+      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(107,122,130);
+      doc.text(`Cédula: ${signerLicense}`, (60+W/2-20)/2, this._cursorY+58, { align:"center" });
+      doc.text("Médico del trabajo certificado", (60+W/2-20)/2, this._cursorY+70, { align:"center" });
+      // bloque digital
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(43,62,69);
+      doc.text("Sello digital", (W/2+20+W-60)/2, this._cursorY+46, { align:"center" });
+      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(107,122,130);
+      doc.text(`Modo: ${mode}`, (W/2+20+W-60)/2, this._cursorY+58, { align:"center" });
+      doc.text(`SHA-256 (corto): ${hash}`, (W/2+20+W-60)/2, this._cursorY+70, { align:"center" });
+      doc.text(dayjs().format("YYYY-MM-DD HH:mm"), (W/2+20+W-60)/2, this._cursorY+82, { align:"center" });
+      this._cursorY += 90;
+    },
+
+    // BODY: apto / historia
+    _buildAptoBody(doc, kind, e, w, M, W){
+      return () => {
+        const isHistoria = kind === "historia";
+        doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(11,31,37);
+        doc.text(isHistoria ? "Historia clínica laboral" : "Dictamen médico de aptitud laboral", 40, this._cursorY);
+        this._cursorY += 12;
+        doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(107,122,130);
+        doc.text(`Emitido el ${dayjs(e.date).format("YYYY-MM-DD")} · Examen ${e.type} · Validez 12 meses salvo cambio de puesto`, 40, this._cursorY);
+        this._cursorY += 14;
+
+        if (!isHistoria) this._verdictBanner(doc, e.verdict, e.confidence);
+
+        this._section(doc, "1 · Identificación del trabajador");
+        this._kvTable(doc, [
+          ["Nombre completo", w.fullName], ["CURP", w.curp], ["NSS", w.nss||"—"],
+          ["RFC", w.rfc||"—"], ["Fecha de nacimiento", w.birthDate],
+          ["Edad / sexo", `${w.age} años · ${w.sex}`],
+          ["Empresa", w.company], ["Centro de trabajo", w.worksite],
+          ["Puesto", w.jobPosition], ["Número de empleado", w.employeeNo||"—"],
+        ]);
+
+        this._section(doc, "2 · Riesgos y EPP");
+        this._kvTable(doc, [
+          ["Riesgos identificados", (w.risks||[]).join(", ") || "—"],
+          ["EPP asignado", (w.epp||[]).join(", ") || "—"],
+        ]);
+
+        this._section(doc, "3 · Resumen de resultados clínicos");
+        const v = e.vitals, a = e.audio, s = e.spiro, l = e.labs;
+        this._kvTable(doc, [
+          ["TA", `${v.sbp||"—"}/${v.dbp||"—"} mmHg`],
+          ["FC / FR", `${v.hr||"—"} lpm · ${v.rr||"—"} rpm`],
+          ["SpO₂ / Temp", `${v.spo2||"—"}% · ${v.temp||"—"} °C`],
+          ["Peso / Talla / IMC", `${v.weight||"—"} kg · ${v.height||"—"} m · ${v.bmi||"—"} kg/m²`],
+          ["Audiometría PTA OD/OI", `${a.ptaOd||"—"} / ${a.ptaOi||"—"} dB · Klockhoff ${a.klockhoff||"—"}`],
+          ["Espirometría", `FVC ${s.fvcPct||"—"}% · FEV1 ${s.fev1Pct||"—"}% · GOLD ${s.gold||"—"}`],
+          ["ECG", e.ecg?.findings || (e.ecg?.severity === "none" ? "Sin alteraciones" : "Ver hallazgos")],
+          ["Laboratorios", `Glu ${l.glucose||"—"} · HbA1c ${l.hba1c||"—"}% · LDL ${l.ldl||"—"} · Cr ${l.creatinine||"—"}`],
+          ["NOM-035 Guía III", `Puntaje ${e.nom035?.score||"—"} · Nivel ${e.nom035?.level||"—"}`],
+        ]);
+
+        if (e.engine?.firedRules?.length){
+          this._section(doc, "4 · Fundamentación del dictamen");
+          e.engine.firedRules.forEach(r => this._para(doc, `• ${r.id} — ${r.name} (${r.nom})`));
+        }
+        if (e.engine?.restrictions?.length){
+          this._section(doc, "5 · Restricciones laborales");
+          e.engine.restrictions.forEach(r => this._para(doc, `• ${r}`));
+        }
+        if (e.notes){
+          this._section(doc, "6 · Notas clínicas del médico");
+          this._para(doc, e.notes);
+        }
+
+        this._section(doc, "Marco normativo");
+        this._para(doc, "Este dictamen se emite conforme a la NOM-004-SSA3-2012 «Del expediente clínico», la NOM-030-STPS-2009 «Servicios preventivos de seguridad y salud en el trabajo» y, cuando aplica, NOM-035-STPS-2018 «Factores de riesgo psicosocial». Los datos se tratan bajo la LFPDPPP. Este documento posee firma electrónica con valor probatorio conforme al Art. 89 del Código de Comercio.");
+
+        const hash = btoa(e.id + w.curp).slice(0,16).toUpperCase();
+        this._signature(doc, this.user.name, this.user?.email, e.signature?.mode||"PKCS7_LOCAL", hash);
+      };
+    },
+
+    _buildST7Body(doc, a, w, M, W){
+      return () => {
+        doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(11,31,37);
+        doc.text("ST-7 · Aviso de atención médica inicial y calificación de probable accidente de trabajo", 40, this._cursorY, { maxWidth: W-80 });
+        this._cursorY += 28;
+        doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(107,122,130);
+        doc.text("Formato oficial STPS / IMSS · Notificación al IMSS dentro de 72 h.", 40, this._cursorY);
+        this._cursorY += 14;
+
+        // Banner alerta
+        doc.setFillColor(254,246,224); doc.setDrawColor(214,137,16);
+        doc.roundedRect(40, this._cursorY, W-80, 32, 6, 6, "FD");
+        doc.setTextColor(184,119,10); doc.setFont("helvetica","bold"); doc.setFontSize(9);
+        doc.text("Aviso normativo", 50, this._cursorY+14);
+        doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(43,62,69);
+        doc.text("Omisión o falsedad es sancionable conforme al Art. 304 de la Ley del Seguro Social.", 50, this._cursorY+26);
+        this._cursorY += 40;
+
+        this._section(doc, "1 · Datos del trabajador");
+        this._kvTable(doc, [
+          ["Nombre", w.fullName], ["CURP", w.curp], ["NSS", w.nss||"—"],
+          ["RFC", w.rfc||"—"], ["Edad / sexo", `${w.age} · ${w.sex}`], ["Puesto", w.jobPosition],
+        ]);
+
+        this._section(doc, "2 · Datos del accidente");
+        this._kvTable(doc, [
+          ["Fecha y hora", dayjs(a.datetime).format("YYYY-MM-DD HH:mm")],
+          ["Lugar", a.location||"—"],
+          ["En horario laboral", a.onDuty||"—"],
+          ["Trayecto", a.commute||"No"],
+          ["Testigos", a.witnesses||"—"],
+        ]);
+
+        this._section(doc, "3 · Mecanismo lesional");
+        this._para(doc, a.mechanism || "—");
+
+        this._section(doc, "4 · Lesión y diagnóstico inicial");
+        this._kvTable(doc, [
+          ["Región anatómica", a.bodyRegion||"—"],
+          ["Tipo de lesión", a.injuryType||"—"],
+          ["Diagnóstico CIE-10", a.icd10||"—"],
+          ["Días estimados de incapacidad", a.estimatedDays||"—"],
+          ["Tratamiento inicial", a.treatment||"—"],
+        ]);
+
+        this._section(doc, "5 · Calificación preliminar");
+        this._para(doc, a.calification || "Pendiente.");
+
+        const hash = btoa(a.id + w.curp).slice(0,16).toUpperCase();
+        this._signature(doc, this.user.name, this.user?.email, "PKCS7_LOCAL", hash);
+      };
+    },
+    _buildST2Body(doc, a, w, M, W){
+      return () => {
+        doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(11,31,37);
+        doc.text("ST-2 · Dictamen de probable incapacidad permanente", 40, this._cursorY, { maxWidth: W-80 });
+        this._cursorY += 20;
+        doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(107,122,130);
+        doc.text("Formato STPS / IMSS · Se emite al alta médica con secuelas.", 40, this._cursorY);
+        this._cursorY += 14;
+
+        this._section(doc, "1 · Datos del trabajador");
+        this._kvTable(doc, [
+          ["Nombre", w.fullName], ["CURP", w.curp], ["NSS", w.nss||"—"],
+          ["Empresa", w.company], ["Puesto", w.jobPosition],
+        ]);
+
+        this._section(doc, "2 · Referencia del accidente");
+        this._kvTable(doc, [
+          ["Fecha del evento", dayjs(a.datetime).format("YYYY-MM-DD")],
+          ["Lugar", a.location||"—"],
+          ["Lesión", `${a.bodyRegion||"—"} · ${a.injuryType||"—"}`],
+          ["CIE-10", a.icd10||"—"],
+        ]);
+
+        this._section(doc, "3 · Evaluación al alta");
+        this._para(doc, "Tras evaluación médica integral, se considera que el trabajador presenta secuelas permanentes derivadas del accidente referido. Se documenta valoración y grado estimado de incapacidad para calificación final por el IMSS.");
+
+        this._section(doc, "4 · Recomendación de incapacidad");
+        this._kvTable(doc, [
+          ["Tipo propuesto", "Permanente parcial"],
+          ["Grado estimado", "A confirmar por IMSS"],
+          ["Restricciones futuras", "Sin actividades de fuerza prolongada con extremidad afectada."],
+        ]);
+
+        const hash = btoa(a.id + "ST2" + w.curp).slice(0,16).toUpperCase();
+        this._signature(doc, this.user.name, this.user?.email, "PKCS7_LOCAL", hash);
+      };
+    },
+    _buildNom035Body(doc, e, w, M, W){
+      return () => {
+        doc.setFont("helvetica","bold"); doc.setFontSize(15); doc.setTextColor(11,31,37);
+        doc.text("Identificación y análisis de factores de riesgo psicosocial", 40, this._cursorY, { maxWidth: W-80 });
+        this._cursorY += 22;
+        doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(107,122,130);
+        doc.text(`Aplicación Guía III · ${dayjs(e.date).format("YYYY-MM-DD")}`, 40, this._cursorY);
+        this._cursorY += 14;
+
+        const score = e.nom035?.score || 0;
+        const level = e.nom035?.level || "—";
+        const levelColors = { "Nulo o despreciable":[30,132,73], "Bajo":[39,174,96], "Medio":[214,137,16], "Alto":[230,126,34], "Muy alto":[192,57,43] };
+        const c = levelColors[level] || [107,122,130];
+        doc.setFillColor(...c);
+        doc.roundedRect(40, this._cursorY, W-80, 50, 8, 8, "F");
+        doc.setTextColor(255,255,255); doc.setFont("helvetica","bold");
+        doc.setFontSize(11);
+        doc.text(`PUNTAJE: ${score}`, W*0.32, this._cursorY+30, { align:"center" });
+        doc.text(`NIVEL: ${level}`, W*0.68, this._cursorY+30, { align:"center" });
+        this._cursorY += 60;
+        doc.setTextColor(43,62,69);
+
+        this._section(doc, "1 · Datos del trabajador");
+        this._kvTable(doc, [
+          ["Nombre", w.fullName], ["CURP", w.curp],
+          ["Puesto", w.jobPosition], ["Empresa", w.company],
+        ]);
+
+        this._section(doc, "2 · Resultados por dominio");
+        const r = e.nom035?.responses || {};
+        const domLabels = { ambiente:"Ambiente de trabajo", actividad:"Factores propios de la actividad",
+          tiempo:"Organización del tiempo de trabajo", liderazgo:"Liderazgo y relaciones",
+          entorno:"Entorno organizacional", carga:"Carga de trabajo",
+          control:"Falta de control sobre el trabajo", jornada:"Jornada y rotación de turnos" };
+        doc.autoTable({
+          startY: this._cursorY,
+          head: [["Dominio", "Puntaje", "Nivel del dominio"]],
+          body: Object.entries(r).map(([k,v]) => [domLabels[k]||k, String(v), n35Level((v||0)*4)]),
+          theme: "grid",
+          headStyles: { fillColor: [10,138,127], textColor: [255,255,255], fontStyle:"bold", fontSize:9 },
+          styles: { fontSize: 9, cellPadding: 4 },
+          margin: { left: 40, right: 40 },
+          alternateRowStyles: { fillColor: [245,241,234] },
+        });
+        this._cursorY = doc.lastAutoTable.finalY + 10;
+
+        this._section(doc, "3 · Plan de intervención sugerido");
+        const plans = {
+          "Nulo o despreciable": ["Mantener acciones preventivas generales.","Difundir mecanismos de denuncia.","Reaplicar la guía cada 2 años."],
+          "Bajo": ["Mantener acciones preventivas generales.","Difundir mecanismos de denuncia.","Reaplicar la guía cada 2 años."],
+          "Medio": ["Implementar mejoras en los dominios con mayor puntaje.","Sesiones grupales de manejo de carga.","Reaplicar a los 6 meses."],
+          "Alto": ["Atención individualizada por médico/psicólogo.","Plan multinivel en organización y liderazgo.","Reaplicar en máximo 3 meses."],
+          "Muy alto": ["Practicar exámenes médicos a expuestos.","Plan urgente en organización y liderazgo.","Reaplicar en máximo 3 meses."],
+        };
+        (plans[level] || []).forEach(p => this._para(doc, "• "+p));
+
+        const hash = btoa(e.id + "N35").slice(0,16).toUpperCase();
+        this._signature(doc, this.user.name, this.user?.email, "PKCS7_LOCAL", hash);
+      };
+    },
+    _buildReporteBody(doc, M, W){
+      return () => {
+        doc.setFont("helvetica","bold"); doc.setFontSize(16); doc.setTextColor(11,31,37);
+        doc.text("Reporte ejecutivo de salud ocupacional", 40, this._cursorY);
+        this._cursorY += 18;
+        doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(107,122,130);
+        doc.text(`${this.reportForm.company} · ${this.reportForm.period}`, 40, this._cursorY);
+        this._cursorY += 14;
+
+        // KPIs cards
+        const k = this.kpis;
+        const cardW = (W-80)/4 - 6;
+        const drawCard = (x, label, val, color) => {
+          doc.setFillColor(...color);
+          doc.roundedRect(x, this._cursorY, cardW, 60, 6, 6, "F");
+          doc.setTextColor(255,255,255); doc.setFont("helvetica","normal"); doc.setFontSize(8);
+          doc.text(label, x + cardW/2, this._cursorY+18, { align:"center" });
+          doc.setFont("helvetica","bold"); doc.setFontSize(20);
+          doc.text(String(val), x + cardW/2, this._cursorY+44, { align:"center" });
+        };
+        drawCard(40,           "Trabajadores",  k.workers,       [15,181,166]);
+        drawCard(40+cardW+8,   "Evaluaciones",  k.evaluations,   [10,138,127]);
+        drawCard(40+2*(cardW+8), "Tasa aptitud", k.aptRate+"%",  [30,132,73]);
+        drawCard(40+3*(cardW+8), "Accidentes",  k.accidents,     [214,137,16]);
+        this._cursorY += 70;
+
+        this._section(doc, "1 · Distribución de dictámenes");
+        const counts = { APTO:0, APTO_RESTRICCIONES:0, NO_APTO_TEMPORAL:0, NO_APTO_DEFINITIVO:0 };
+        this.evaluations.forEach(e=>{ if (counts[e.verdict]!=null) counts[e.verdict]++; });
+        const total = Math.max(1, Object.values(counts).reduce((s,v)=>s+v,0));
+        doc.autoTable({
+          startY: this._cursorY,
+          head: [["Dictamen","Cantidad","% del total"]],
+          body: Object.entries(counts).map(([k,v]) => [
+            this.verdictLabel(k), String(v), ((v/total)*100).toFixed(1)+"%"
+          ]),
+          theme: "grid",
+          headStyles: { fillColor:[11,31,37], textColor:[255,255,255], fontSize:9 },
+          styles: { fontSize: 9, cellPadding: 4 },
+          margin: { left:40, right:40 },
+        });
+        this._cursorY = doc.lastAutoTable.finalY + 10;
+
+        this._section(doc, "2 · Vigilancia destacada");
+        this._para(doc, "Vigilancia audiométrica: monitoreo a trabajadores con Klockhoff II o superior. NOM-035: aplicar plan en cohorte nivel Medio/Alto. Recomendación: mantener el programa metabólico para IMC ≥ 30.");
+
+        this._section(doc, "3 · Recomendaciones");
+        ["Auditar entrega de EPP en áreas de riesgo elevado.","Reforzar pausas activas en turnos rotativos.",
+         "Calendarizar audiometrías semestrales para puestos con exposición a ruido > 85 dB."].forEach(r => this._para(doc, "• "+r));
+
+        const hash = btoa("REJ-"+(new Date()).toISOString()).slice(0,16).toUpperCase();
+        this._signature(doc, this.user.name, this.user?.email, "PKCS7_LOCAL", hash);
+      };
+    },
+  };
+}
+
+// ── Login app (pantalla de acceso) ───────────────────────────────────────
+function loginApp(){
+  return {
+    email: '',
+    password: '',
+    error: '',
+    loading: false,
+    get loggedIn(){ return !!localStorage.getItem('ohp_token'); },
+    async login(){
+      this.error = '';
+      this.loading = true;
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.email, password: this.password }),
+        });
+        const data = await res.json();
+        if (!res.ok) { this.error = data.error || 'Error al iniciar sesión'; return; }
+        localStorage.setItem('ohp_token', data.token);
+        window.location.reload();
+      } catch {
+        this.error = 'No se pudo conectar con el servidor';
+      } finally {
+        this.loading = false;
+      }
+    },
+  };
+}
+</script>
+</body>
+</html>
