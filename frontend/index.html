@@ -1566,13 +1566,12 @@ function ohpApp(){
     async init(){
       // Verificar token y cargar sesión
       const token = localStorage.getItem('ohp_token');
-      if (!token) { window.location.reload(); return; }
+      if (!token) return; // sin token: loginApp maneja la UI
       try {
         this.user = await apiFetch('/auth/me');
       } catch {
         localStorage.removeItem('ohp_token');
-        window.location.reload();
-        return;
+        return; // token inválido: loginApp mostrará el login al detectar ausencia
       }
 
       this.appReady = true;
