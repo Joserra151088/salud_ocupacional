@@ -1754,23 +1754,22 @@ function ohpApp(){
       if (!f.fullName || !f.employeeNo){ this.flash("Nombre y número de empleado son requeridos."); return; }
       f.age = this.computeAge(f.birthDate);
       try {
-        if (f.id){
-          const updated = await apiFetch(`/workers/${f.id}`, { method:'PUT', body:{
-            name: f.fullName, date_birth: f.birthDate||null, gender: (f.sex||'').toLowerCase()||null,
-            department: f.company||null, position: f.jobPosition||null,
+        const workerPayload = {
+            name: f.fullName, curp: f.curp||null, nss: f.nss||null, rfc: f.rfc||null,
+            date_birth: f.birthDate||null, gender: (f.sex||'').toLowerCase()||null,
+            department: f.company||null, work_center: f.worksite||null,
+            position: f.jobPosition||null, risks: f.risks||[], epp: f.epp||[],
             emergency_contact_name: f.emergencyName||null, emergency_contact_phone: f.emergencyPhone||null,
-          }});
+          };
+        if (f.id){
+          const updated = await apiFetch(`/workers/${f.id}`, { method:'PUT', body: workerPayload });
           const i = this.workers.findIndex(w=>w.id===f.id);
-          if (i>=0) this.workers[i] = { ...this.workers[i], ...f, ...updated };
+          if (i>=0) this.workers[i] = { ...this.workers[i], ...updated };
         } else {
           const created = await apiFetch('/workers', { method:'POST', body:{
-            name: f.fullName, employee_id: f.employeeNo, date_birth: f.birthDate||null,
-            gender: (f.sex||'').toLowerCase()||null, department: f.company||null,
-            position: f.jobPosition||null,
+            ...workerPayload, employee_id: f.employeeNo,
           }});
-          f.id = created.id;
-          f.createdAt = created.created_at;
-          this.workers.push({ ...f, ...created });
+          this.workers.push(created);
         }
         this.flash("Expediente guardado.");
         this.workerForm = null;
