@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS evaluations (
   created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
-  FOREIGN KEY (doctor_id) REFERENCES users(id) ON SET NULL,
+  FOREIGN KEY (doctor_id) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_eval_worker (worker_id),
   INDEX idx_eval_date (date),
   INDEX idx_eval_type (type)
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS accidents (
   created_at           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at           DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
-  FOREIGN KEY (reported_by) REFERENCES users(id) ON SET NULL,
+  FOREIGN KEY (reported_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_acc_worker (worker_id),
   INDEX idx_acc_date (date),
   INDEX idx_acc_status (status)
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS documents (
   notes        TEXT         NULL,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
-  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON SET NULL,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL,
   INDEX idx_doc_worker (worker_id)
 ) ENGINE=InnoDB;
 
